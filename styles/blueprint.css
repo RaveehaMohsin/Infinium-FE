@@ -1,0 +1,245 @@
+/* Blueprint Theme Styles */
+
+/* Subtle grid background */
+.blueprint-bg {
+  background-image: 
+    linear-gradient(rgba(226, 232, 240, 0.5) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 232, 240, 0.5) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* Blueprint card with sketch-like border */
+.blueprint-card {
+  position: relative;
+  border: 1.5px solid #1E3A8A;
+  box-shadow: 0 0 0 1px rgba(30, 58, 138, 0.1);
+  transition: all 0.3s ease;
+}
+
+.blueprint-card:hover {
+  box-shadow: 
+    0 0 0 2px rgba(56, 189, 248, 0.3),
+    0 4px 12px rgba(30, 58, 138, 0.08);
+  border-color: #38BDF8;
+}
+
+/* Blueprint line connector */
+.blueprint-line {
+  position: absolute;
+  background: #1E3A8A;
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.blueprint-line.active {
+  opacity: 1;
+  background: #38BDF8;
+}
+
+/* Animated dash line */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.blueprint-dash {
+  stroke-dasharray: 5, 5;
+  animation: dash 20s linear infinite;
+}
+
+/* Node connector dots */
+.blueprint-node {
+  position: relative;
+}
+
+.blueprint-node::before {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #1E3A8A;
+  border-radius: 50%;
+  top: 50%;
+  left: -3px;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.blueprint-node:hover::before {
+  opacity: 1;
+}
+
+/* Highlight accent */
+.blueprint-highlight {
+  position: relative;
+  overflow: hidden;
+}
+
+.blueprint-highlight::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(250, 204, 21, 0.1), transparent);
+  transition: left 0.5s ease;
+}
+
+.blueprint-highlight:hover::after {
+  left: 100%;
+}
+
+/* Sketch underline effect */
+.blueprint-underline {
+  position: relative;
+}
+
+.blueprint-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: #38BDF8;
+  transition: width 0.3s ease;
+}
+
+.blueprint-underline:hover::after {
+  width: 100%;
+}
+
+/* Icon stroke style */
+.blueprint-icon {
+  stroke-width: 1.5;
+  fill: none;
+  stroke: currentColor;
+}
+
+/* Pulsing dot */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.1);
+  }
+}
+
+.blueprint-pulse {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* Connection line animation */
+@keyframes draw-line {
+  from {
+    stroke-dashoffset: 1000;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.blueprint-animate-line {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: draw-line 2s ease-in-out forwards;
+}
+
+/* Corner brackets for technical feel */
+.blueprint-brackets {
+  position: relative;
+}
+
+.blueprint-brackets::before,
+.blueprint-brackets::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid #1E3A8A;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.blueprint-brackets::before {
+  top: -1px;
+  left: -1px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.blueprint-brackets::after {
+  bottom: -1px;
+  right: -1px;
+  border-left: none;
+  border-top: none;
+}
+
+.blueprint-brackets:hover::before,
+.blueprint-brackets:hover::after {
+  opacity: 1;
+}
+
+/* Technical label style */
+.blueprint-label {
+  font-family: 'Courier New', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748B;
+}
+
+/* Measurement line */
+.blueprint-measure {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.blueprint-measure::before,
+.blueprint-measure::after {
+  content: '';
+  width: 4px;
+  height: 1px;
+  background: #1E3A8A;
+}
+
+/* Graph paper effect for charts */
+.blueprint-graph {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(30, 58, 138, 0.05) 0px, rgba(30, 58, 138, 0.05) 1px, transparent 1px, transparent 20px),
+    repeating-linear-gradient(90deg, rgba(30, 58, 138, 0.05) 0px, rgba(30, 58, 138, 0.05) 1px, transparent 1px, transparent 20px),
+    repeating-linear-gradient(0deg, rgba(30, 58, 138, 0.1) 0px, rgba(30, 58, 138, 0.1) 2px, transparent 2px, transparent 100px),
+    repeating-linear-gradient(90deg, rgba(30, 58, 138, 0.1) 0px, rgba(30, 58, 138, 0.1) 2px, transparent 2px, transparent 100px);
+}
+
+/* Stat box with corner marks */
+.blueprint-stat {
+  position: relative;
+  padding: 1.5rem;
+}
+
+.blueprint-stat::before {
+  content: '├';
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: #1E3A8A;
+  font-weight: bold;
+}
+
+.blueprint-stat::after {
+  content: '┤';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  color: #1E3A8A;
+  font-weight: bold;
+}

@@ -1,0 +1,154 @@
+/* Infinium Professional Utilities */
+
+/* Remove all inline font-family declarations - use global fonts */
+* {
+    font-family: inherit;
+}
+
+/* Utility classes for consistent styling */
+.heading {
+    font-family: var(--font-heading);
+}
+
+.body-text {
+    font-family: var(--font-body);
+}
+
+/* Gradient backgrounds */
+.gradient-blue {
+    background: linear-gradient(135deg, var(--gradient-blue-start), var(--gradient-blue-end));
+}
+
+.gradient-purple {
+    background: linear-gradient(135deg, var(--gradient-purple-start), var(--gradient-purple-end));
+}
+
+.gradient-orange {
+    background: linear-gradient(135deg, var(--gradient-orange-start), var(--gradient-orange-end));
+}
+
+.gradient-green {
+    background: linear-gradient(135deg, var(--gradient-green-start), var(--gradient-green-end));
+}
+
+/* Professional shadows */
+.shadow-professional {
+    box-shadow: var(--shadow-lg);
+}
+
+/* Smooth transitions */
+.transition-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Download button styles */
+.btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(135deg, var(--gradient-blue-start), var(--gradient-blue-end));
+    color: white;
+    border-radius: var(--radius-lg);
+    font-weight: 500;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-md);
+}
+
+.btn-download:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-xl);
+}
+
+.btn-download:active {
+    transform: translateY(0);
+}
+
+/* Professional card styles */
+.card-professional {
+    background: white;
+    border-radius: var(--radius-xl);
+    border: 2px solid var(--border);
+    padding: var(--spacing-lg);
+    transition: all 0.3s ease;
+}
+
+.card-professional:hover {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lg);
+    transform: translateY(-2px);
+}
+
+/* Consistent input styles */
+.input-professional {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-lg);
+    border: 2px solid var(--border);
+    background: var(--input-background);
+    transition: all 0.2s ease;
+}
+
+.input-professional:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+/* Badge styles */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.badge-blue {
+    background: #DBEAFE;
+    color: #1E40AF;
+}
+
+.badge-purple {
+    background: #F3E8FF;
+    color: #7C3AED;
+}
+
+.badge-orange {
+    background: #FED7AA;
+    color: #C2410C;
+}
+
+.badge-green {
+    background: #D1FAE5;
+    color: #065F46;
+}
+
+/* Loading spinner */
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+/* Pulse animation for status indicators */
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.pulse-glow {
+    animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
