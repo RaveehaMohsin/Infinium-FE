@@ -12,6 +12,8 @@ import {
   Plug,
   Settings,
   FolderOpen,
+  BookOpen,
+  FileText,
   LogOut
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -44,7 +46,8 @@ export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
     { icon: Brain, label: "Reasoning", page: "reasoning" as string },
     { icon: Clock, label: "Decision History", page: "decision-history" as string },
     { icon: AlertTriangle, label: "Error Insights", page: "error-insights" as string },
-    { icon: FolderOpen, label: "Knowledge Base", page: "knowledge" as string },
+    { icon: BookOpen, label: "Document Agent", page: "knowledge" as string },
+    { icon: FileText, label: "PDF Viewer", page: "pdf" as string },
     { icon: LineChart, label: "Analytics", page: "analytics" as string },
     { icon: Database, label: "Data Sources", page: "datasources" as string },
     { icon: Plug, label: "Integrations", page: "integrations" as string },

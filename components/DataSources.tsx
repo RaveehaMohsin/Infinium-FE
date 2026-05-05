@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { Card } from "@/components/ui/card";
 import {
   GitBranch,
   Database,
@@ -24,6 +25,7 @@ import {
   authApi,
   ingestApi,
   reposApi,
+  branchIngestApi,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
@@ -45,6 +47,9 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
     type: "success" | "error";
     message: string;
   } | null>(null);
+  const [manualUrl, setManualUrl] = useState("");
+  const [isManualSubmitting, setIsManualSubmitting] = useState(false);
+  const [confirmRepo, setConfirmRepo] = useState<GithubRepo | null>(null);
 
   const isGithubUser = user?.auth_provider === "github";
 
@@ -83,29 +88,48 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
     const interval = setInterval(async () => {
       try {
         const updates = await Promise.all(
-          indexing.map((r) =>
-            ingestApi
-              .getIngestionStatus(r.name)
-              .then((status) => ({ name: r.name, status }))
-              .catch(() => null)
-          )
+          indexing.map(async (r) => {
+            // Check both standard and branch status
+            const [std, br] = await Promise.allSettled([
+              ingestApi.getIngestionStatus(r.name),
+              branchIngestApi.getBranchIngestionStatus(r.name)
+            ]);
+            
+            const stdStatus = std.status === 'fulfilled' ? std.value : null;
+            const brStatus = br.status === 'fulfilled' ? br.value : null;
+            
+            // Use branch status if it's more active/complete
+            if (brStatus && brStatus.status !== 'failed') {
+              return { name: r.name, status: brStatus, isBranch: true };
+            }
+            return stdStatus ? { name: r.name, status: stdStatus, isBranch: false } : null;
+          })
         );
+        
         setRepos((prev) =>
           prev.map((repo) => {
             const update = updates.find((u) => u && u.name === repo.name);
             if (!update) return repo;
+            const s = update.status;
+            
+            // Type guard to safely access branches_list
+            const branchesList = update.isBranch && 'branches_list' in s 
+              ? (s as { branches_list: string[] }).branches_list 
+              : repo.indexed_branches;
+
             return {
               ...repo,
-              indexing_status: update.status.status,
-              chunks_count: update.status.chunks_count ?? repo.chunks_count,
-              indexed_at: update.status.indexed_at ?? repo.indexed_at,
-              is_indexed:
-                update.status.status === "completed" || repo.is_indexed,
+              indexing_status: s.status,
+              chunks_count: s.chunks_count ?? repo.chunks_count,
+              indexed_at: s.indexed_at ?? repo.indexed_at,
+              is_indexed: s.status === "completed" || repo.is_indexed,
+              has_branch_index: update.isBranch && s.status === 'completed' ? true : repo.has_branch_index,
+              indexed_branches: branchesList
             };
           })
         );
       } catch {
-        // silent — next tick will retry
+        // silent
       }
     }, 5000);
     return () => clearInterval(interval);
@@ -156,15 +180,106 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
         message: "Indexing started. This can take a few minutes.",
       });
     } catch (err) {
-      const message =
+      let message =
         err instanceof ApiError
           ? err.message
           : err instanceof Error
             ? err.message
             : "Failed to start indexing";
+            
+      if (message.toLowerCase().includes("token") || message.toLowerCase().includes("access denied")) {
+        message = "GitHub session expired or missing. Please 'Connect GitHub' again.";
+      }
       setFeedback({ repoName: repo.name, type: "error", message });
     } finally {
       setRepoAction(repo.name, "idle");
+    }
+  };
+
+  const handleStartBranchIngestion = async (repo: GithubRepo) => {
+    setConfirmRepo(repo);
+  };
+
+  const confirmDeepIndexing = async () => {
+    if (!confirmRepo) return;
+    const repo = confirmRepo;
+    setConfirmRepo(null);
+
+    setRepoAction(repo.name, "starting");
+    setFeedback(null);
+    try {
+      await branchIngestApi.startBranchIngestion({
+        repo_url: repo.clone_url,
+        repo_name: repo.name,
+      });
+      setRepos((prev) =>
+        prev.map((r) =>
+          r.name === repo.name
+            ? { ...r, indexing_status: "indexing", is_indexed: true }
+            : r
+        )
+      );
+      setFeedback({
+        repoName: repo.name,
+        type: "success",
+        message: "Deep multi-branch indexing started. This will take longer than a standard index.",
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to start branch indexing";
+      setFeedback({ repoName: repo.name, type: "error", message });
+    } finally {
+      setRepoAction(repo.name, "idle");
+    }
+  };
+
+  const handleManualIngest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = manualUrl.trim();
+    if (!url) return;
+
+    setIsManualSubmitting(true);
+    setError(null);
+    setFeedback(null);
+
+    // Extract name from URL (e.g. owner/repo)
+    const fullName = url.replace("https://github.com/", "").replace(".git", "");
+    const repoName = fullName.replace(/\//g, "_");
+
+    try {
+      await ingestApi.startIngestion({
+        repo_url: url,
+        repo_name: repoName,
+      });
+      
+      setManualUrl("");
+      setFeedback({
+        repoName: repoName,
+        type: "success",
+        message: `Indexing started for ${repoName}. This can take a few minutes.`,
+      });
+      
+      // Reload after a short delay to allow background process to start
+      setTimeout(loadRepos, 1500);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to start manual indexing";
+      
+      if (message.toLowerCase().includes("token") || message.toLowerCase().includes("access denied")) {
+        setError("GitHub authentication required. Please click 'Connect GitHub' above to enable ingestion for this repository.");
+      } else {
+        setError(message);
+      }
+    } finally {
+      setIsManualSubmitting(false);
     }
   };
 
@@ -281,17 +396,64 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
         {/* Main Content */}
         <div className="flex-1 overflow-y-auto p-8">
           <div className="max-w-7xl mx-auto space-y-8">
+            {/* Manual Ingestion */}
+            <Card className="p-6 border-2 border-gray-200 rounded-xl bg-white blueprint-card">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-blue-100 rounded-lg text-blue-600">
+                  <PlayCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-[#0F172A]">Manual Repository Ingestion</h2>
+                  <p className="text-gray-500 text-sm">Ingest any public or private GitHub repository by URL</p>
+                </div>
+              </div>
+              
+              <form onSubmit={handleManualIngest} className="flex gap-4">
+                <div className="flex-1 relative">
+                  <GitBranch className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#1E3A8A]" />
+                  <input
+                    type="text"
+                    value={manualUrl}
+                    onChange={(e) => setManualUrl(e.target.value)}
+                    placeholder="https://github.com/owner/repository"
+                    className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-[#E2E8F0] focus:border-[#38BDF8] focus:outline-none transition-all blueprint-highlight"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={isManualSubmitting || !manualUrl.trim()}
+                  className="px-8 py-3 bg-[#1E3A8A] hover:bg-[#38BDF8] text-white rounded-xl font-medium transition-all flex items-center gap-2 disabled:opacity-50 border-2 border-[#1E3A8A] hover:border-[#38BDF8]"
+                >
+                  {isManualSubmitting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Database className="w-4 h-4" />
+                  )}
+                  Start Indexing
+                </button>
+              </form>
+              <div className="mt-4 flex items-center gap-4 text-xs">
+                <span className="text-[#64748B] flex items-center gap-1">
+                  <Lock className="w-3 h-3" />
+                  Private repos require GitHub OAuth
+                </span>
+                <span className="text-[#64748B] flex items-center gap-1">
+                  <Activity className="w-3 h-3" />
+                  Automatic dependency discovery
+                </span>
+              </div>
+            </Card>
+
             {!isGithubUser && (
               <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-6">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <h3 className="font-semibold text-amber-900">
-                      Connect GitHub to index repositories
+                      Connect GitHub for Seamless Integration
                     </h3>
                     <p className="text-sm text-amber-800 mt-1">
-                      You're signed in with email. Sign in with GitHub to list
-                      and index your repositories.
+                      You're signed in with email. Sign in with GitHub to browse your own repositories directly.
                     </p>
                     <button
                       onClick={() => {
@@ -427,7 +589,7 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
                           <div>
                             <p className="text-xs text-gray-500 mb-1">Branch</p>
                             <p className="text-sm font-medium text-gray-900">
-                              {repo.default_branch}
+                              {repo.default_branch || "main"}
                             </p>
                           </div>
                           <div>
@@ -435,7 +597,7 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
                               <Star className="w-3 h-3" /> Stars
                             </p>
                             <p className="text-sm font-medium text-gray-900">
-                              {repo.stars.toLocaleString()}
+                              {repo.stars?.toLocaleString() || 0}
                             </p>
                           </div>
                           <div>
@@ -469,6 +631,7 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
                         )}
 
                         <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                          {/* Standard Index Button */}
                           {repo.indexing_status !== "completed" &&
                             repo.indexing_status !== "indexing" && (
                               <button
@@ -483,9 +646,21 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
                                 )}
                                 {repo.indexing_status === "failed"
                                   ? "Retry indexing"
-                                  : "Index repo"}
+                                  : "Index main"}
                               </button>
                             )}
+
+                          {/* Deep Index Button - Show if no deep index exists or if standard index failed */}
+                          {!repo.has_branch_index && repo.indexing_status !== "indexing" && (
+                            <button
+                              onClick={() => handleStartBranchIngestion(repo)}
+                              disabled={action === "starting"}
+                              className="px-4 py-2 rounded-lg border-2 border-[#1E3A8A] text-[#1E3A8A] hover:bg-blue-50 transition-colors flex items-center gap-2 text-sm disabled:opacity-60"
+                            >
+                              <GitBranch className="w-4 h-4" />
+                              Deep Index (All Branches)
+                            </button>
+                          )}
                           {(repo.indexing_status === "indexing" ||
                             repo.indexing_status === "pending") && (
                             <span className="px-4 py-2 rounded-lg bg-blue-50 text-blue-700 text-sm flex items-center gap-2">
@@ -534,6 +709,53 @@ export function DataSources({ navigateTo }: DataSourcesProps) {
           </div>
         </div>
       </div>
+
+      {/* Deep Index Confirmation Modal */}
+      {confirmRepo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <Card className="w-full max-w-md p-8 blueprint-card bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="p-4 bg-blue-50 rounded-full text-[#1E3A8A] blueprint-pulse">
+                <GitBranch className="w-12 h-12" strokeWidth={1.5} />
+              </div>
+              
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-[#0F172A]">Deep Indexing</h3>
+                <p className="text-[#64748B]">
+                  You are about to perform a multi-branch ingestion for <span className="font-semibold text-[#1E3A8A]">{confirmRepo.name}</span>.
+                </p>
+              </div>
+
+              <div className="w-full p-4 bg-amber-50 border-2 border-amber-100 rounded-xl text-left">
+                <div className="flex gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-amber-900">Resource Intensive</p>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      This process indexes every commit across all branches. It will significantly increase reasoning depth but may take several minutes to complete.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 w-full pt-4">
+                <button
+                  onClick={() => setConfirmRepo(null)}
+                  className="flex-1 px-4 py-3 border-2 border-[#E2E8F0] rounded-xl font-medium text-[#64748B] hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeepIndexing}
+                  className="flex-1 px-4 py-3 bg-[#1E3A8A] hover:bg-[#38BDF8] text-white rounded-xl font-bold transition-all border-2 border-[#1E3A8A] hover:border-[#38BDF8] shadow-lg shadow-blue-900/20"
+                >
+                  Start Deep Index
+                </button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,26 +12,55 @@ import {
   GitCommit,
   FileText,
   Activity,
-  ArrowRight
+  ArrowRight,
+  Database,
+  Loader2
 } from "lucide-react";
+import { reposApi, queryApi, ApiError, GithubRepo, Conversation } from "@/lib/api";
 
 interface RepositoriesProps {
   navigateTo: (page: string) => void;
 }
 
 export function Repositories({ navigateTo }: RepositoriesProps) {
-  const recentQueries = [
-    { id: 1, query: "Why was JWT authentication deprecated in v3?", time: "2 mins ago", status: "answered" },
-    { id: 2, query: "Show endpoints with recurring 500 errors this week", time: "15 mins ago", status: "answered" },
-    { id: 3, query: "What caching patterns are most used across services?", time: "1 hour ago", status: "answered" },
-    { id: 4, query: "Explain the microservices architecture decision", time: "3 hours ago", status: "answered" },
-  ];
+  const [repos, setRepos] = useState<GithubRepo[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [reposData, convsData] = await Promise.all([
+          reposApi.listAllRepos(),
+          queryApi.listConversations()
+        ]);
+        setRepos(reposData.repositories);
+        setConversations(convsData.conversations.slice(0, 4));
+      } catch (err) {
+        setError("Failed to load dashboard data");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const recentQueries = conversations.map(c => ({
+    id: c.id,
+    query: c.title || "Untitled Conversation",
+    time: new Date(c.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    status: "answered"
+  }));
+
+  const githubReposCount = repos.length;
+  const syncedReposCount = repos.filter(r => r.is_indexed).length;
 
   const knowledgeSources = [
-    { name: "GitHub Repositories", count: 12, status: "synced", lastSync: "5 mins ago", color: "#1E3A8A" },
-    { name: "CI/CD Logs", count: 847, status: "syncing", lastSync: "Syncing...", color: "#38BDF8" },
-    { name: "Documentation", count: 234, status: "synced", lastSync: "10 mins ago", color: "#FACC15" },
-    { name: "Error Reports (Sentry)", count: 1523, status: "synced", lastSync: "2 mins ago", color: "#64748B" },
+    { name: "GitHub Repositories", count: githubReposCount, status: "synced", lastSync: "Live", color: "#1E3A8A" },
+    { name: "CI/CD Logs", count: 0, status: "coming soon", lastSync: "—", color: "#38BDF8" },
+    { name: "Documentation", count: syncedReposCount, status: "synced", lastSync: "Live", color: "#FACC15" },
+    { name: "Error Reports (Sentry)", count: 0, status: "coming soon", lastSync: "—", color: "#64748B" },
   ];
 
   return (
@@ -55,15 +85,17 @@ export function Repositories({ navigateTo }: RepositoriesProps) {
             <Card className="blueprint-card p-6 bg-white">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-[#64748B] text-sm blueprint-label">Total Queries</p>
-                  <p className="text-3xl font-bold text-[#0F172A] mt-2">2,847</p>
+                  <p className="text-[#64748B] text-sm blueprint-label">GitHub Repos</p>
+                  <p className="text-3xl font-bold text-[#0F172A] mt-2">
+                    {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : githubReposCount}
+                  </p>
                   <p className="text-[#38BDF8] text-sm mt-2 flex items-center gap-1">
                     <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
-                    <span>+12% this week</span>
+                    <span>Total discovered</span>
                   </p>
                 </div>
                 <div className="w-12 h-12 border-2 border-[#1E3A8A] rounded-sm flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-[#1E3A8A]" strokeWidth={1.5} />
+                  <Database className="w-6 h-6 text-[#1E3A8A]" strokeWidth={1.5} />
                 </div>
               </div>
             </Card>
@@ -71,11 +103,13 @@ export function Repositories({ navigateTo }: RepositoriesProps) {
             <Card className="blueprint-card p-6 bg-white">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-[#64748B] text-sm blueprint-label">Accuracy Rate</p>
-                  <p className="text-3xl font-bold text-[#0F172A] mt-2">87.4%</p>
+                  <p className="text-[#64748B] text-sm blueprint-label">Synced Repos</p>
+                  <p className="text-3xl font-bold text-[#0F172A] mt-2">
+                    {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : syncedReposCount}
+                  </p>
                   <p className="text-[#FACC15] text-sm mt-2 flex items-center gap-1">
-                    <TrendingUp className="w-4 h-4" strokeWidth={1.5} />
-                    <span>+3.2% improvement</span>
+                    <CheckCircle className="w-4 h-4" strokeWidth={1.5} />
+                    <span>Ready for reasoning</span>
                   </p>
                 </div>
                 <div className="w-12 h-12 border-2 border-[#FACC15] rounded-sm flex items-center justify-center">
@@ -87,11 +121,13 @@ export function Repositories({ navigateTo }: RepositoriesProps) {
             <Card className="blueprint-card p-6 bg-white">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-[#64748B] text-sm blueprint-label">Avg Response Time</p>
-                  <p className="text-3xl font-bold text-[#0F172A] mt-2">1.2s</p>
+                  <p className="text-[#64748B] text-sm blueprint-label">Vector Snippets</p>
+                  <p className="text-3xl font-bold text-[#0F172A] mt-2">
+                    {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : repos.reduce((acc, r) => acc + (r.chunks_count || 0), 0).toLocaleString()}
+                  </p>
                   <p className="text-[#38BDF8] text-sm mt-2 flex items-center gap-1">
-                    <Clock className="w-4 h-4" strokeWidth={1.5} />
-                    <span>Optimal performance</span>
+                    <FileText className="w-4 h-4" strokeWidth={1.5} />
+                    <span>Atomic knowledge</span>
                   </p>
                 </div>
                 <div className="w-12 h-12 border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
@@ -103,15 +139,17 @@ export function Repositories({ navigateTo }: RepositoriesProps) {
             <Card className="blueprint-card p-6 bg-white">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="text-[#64748B] text-sm blueprint-label">Active Issues</p>
-                  <p className="text-3xl font-bold text-[#0F172A] mt-2">23</p>
+                  <p className="text-[#64748B] text-sm blueprint-label">Last Activity</p>
+                  <p className="text-xl font-bold text-[#0F172A] mt-2">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Just now"}
+                  </p>
                   <p className="text-[#EF4444] text-sm mt-2 flex items-center gap-1">
-                    <AlertCircle className="w-4 h-4" strokeWidth={1.5} />
-                    <span>Needs attention</span>
+                    <Clock className="w-4 h-4" strokeWidth={1.5} />
+                    <span>System online</span>
                   </p>
                 </div>
                 <div className="w-12 h-12 border-2 border-[#EF4444] rounded-sm flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-[#EF4444]" strokeWidth={1.5} />
+                  <Activity className="w-6 h-6 text-[#EF4444]" strokeWidth={1.5} />
                 </div>
               </div>
             </Card>

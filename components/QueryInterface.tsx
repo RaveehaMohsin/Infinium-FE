@@ -20,7 +20,10 @@ import {
   Loader2,
   Plus,
   Trash2,
+  Terminal,
 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ApiError,
   Conversation,
@@ -84,6 +87,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
     null
   );
+  const [selectedBranch, setSelectedBranch] = useState<string>(""); // Default to empty, will be set when repo is picked
   const [conversationLoading, setConversationLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,10 +106,21 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
       );
       setRepos(completed);
       setSelectedRepo((current) => {
-        if (current && completed.some((r) => r.repo_name === current)) {
-          return current;
+        const selected = current && completed.some((r) => r.repo_name === current)
+          ? current
+          : completed[0]?.repo_name || "";
+        
+        if (selected) {
+          const repo = completed.find(r => r.repo_name === selected);
+          // Default to "all" if it has multiple branches, otherwise default branch or main
+          const branches = repo?.indexed_branches || [];
+          if (repo?.has_branch_index || branches.length > 1) {
+            setSelectedBranch("all");
+          } else {
+            setSelectedBranch(repo?.default_branch || branches[0] || "main");
+          }
         }
-        return completed[0]?.repo_name || "";
+        return selected;
       });
     } catch (err) {
       const message =
@@ -137,6 +152,11 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
   const repoConversations = useMemo(
     () => conversations.filter((c) => c.repo_name === selectedRepo),
     [conversations, selectedRepo]
+  );
+
+  const selectedRepoObj = useMemo(
+    () => repos.find((r) => r.repo_name === selectedRepo),
+    [repos, selectedRepo]
   );
 
   const messagesFromConversation = (msgs: ConversationMessage[]): DisplayMessage[] =>
@@ -197,12 +217,15 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
     }
   };
 
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
   const handleSendQuery = async () => {
     const text = query.trim();
     if (!text || !selectedRepo || sending) return;
 
     setSending(true);
     setError(null);
+    setStatusMessage("Scanning your codebase...");
 
     const userMessage: DisplayMessage = {
       id: `local-${Date.now()}`,
@@ -215,7 +238,8 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
 
     let conversationId = activeConversationId;
     try {
-      if (!conversationId) {
+      if (!conversationId && selectedRepo !== "all") {
+        setStatusMessage("Connecting to intelligence engine...");
         const conv = await queryApi.startConversation({
           repo_name: selectedRepo,
           title: text.slice(0, 80),
@@ -235,22 +259,65 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
         ]);
       }
 
-      const answer = await queryApi.askQuestion({
-        repo_name: selectedRepo,
-        query: text,
-        conversation_id: conversationId,
-      });
+      const assistantMessageId = `assistant-${Date.now()}`;
+      
+      if (selectedRepo === "all") {
+        setStatusMessage("Reasoning across multiple repositories...");
+        const answer = await queryApi.askAllRepos({
+          query: text,
+        });
+        
+        const assistantMessage: DisplayMessage = {
+          id: assistantMessageId,
+          type: "assistant",
+          content: answer.answer,
+          timestamp: formatTime(),
+          sources: answer.sources,
+          model: answer.model,
+          tokens: answer.tokens_used,
+        };
+        setMessages((prev) => [...prev, assistantMessage]);
+      } else {
+        setStatusMessage("Analyzing your question...");
+        await new Promise(r => setTimeout(r, 600));
+        setStatusMessage("Searching codebase for relevant snippets...");
+        await new Promise(r => setTimeout(r, 800));
+        setStatusMessage("Retrieving repository context and commits...");
+        await new Promise(r => setTimeout(r, 600));
+        setStatusMessage("Synthesizing answer with AI RAG engine...");
+        
+        let fullContent = "";
+        let hasStartedStreaming = false;
+        const stream = queryApi.streamQuestion({
+          repo_name: selectedRepo,
+          query: text,
+          conversation_id: conversationId!,
+          branch_filter: selectedBranch === "all" ? null : selectedBranch,
+        });
 
-      const assistantMessage: DisplayMessage = {
-        id: `assistant-${Date.now()}`,
-        type: "assistant",
-        content: answer.answer,
-        timestamp: formatTime(),
-        sources: answer.sources,
-        model: answer.model,
-        tokens: answer.tokens_used,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+        for await (const chunk of stream) {
+          if (!hasStartedStreaming) {
+            hasStartedStreaming = true;
+            setStatusMessage(null); // Hide status as soon as first chunk arrives
+            
+            const placeholder: DisplayMessage = {
+              id: assistantMessageId,
+              type: "assistant",
+              content: "",
+              timestamp: formatTime(),
+            };
+            setMessages((prev) => [...prev, placeholder]);
+          }
+          
+          fullContent += chunk;
+          setMessages((prev) => 
+            prev.map(m => m.id === assistantMessageId ? {
+              ...m,
+              content: fullContent,
+            } : m)
+          );
+        }
+      }
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -260,7 +327,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
             : "Failed to get an answer";
       setError(message);
       setMessages((prev) => [
-        ...prev,
+        ...prev.filter(m => m.content !== ""), // Remove placeholder if empty
         {
           id: `error-${Date.now()}`,
           type: "assistant",
@@ -270,6 +337,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
       ]);
     } finally {
       setSending(false);
+      setStatusMessage(null);
     }
   };
 
@@ -299,6 +367,8 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
               value={selectedRepo}
               onChange={(e) => {
                 setSelectedRepo(e.target.value);
+                const repo = repos.find(r => r.repo_name === e.target.value);
+                setSelectedBranch(repo?.default_branch || "main");
                 startNewConversation();
               }}
               disabled={reposLoading || noRepos}
@@ -309,11 +379,14 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
               ) : noRepos ? (
                 <option>No indexed repos</option>
               ) : (
-                repos.map((repo) => (
-                  <option key={repo.id} value={repo.repo_name}>
-                    {repo.repo_name}
-                  </option>
-                ))
+                <>
+                  <option value="all">All Repositories</option>
+                  {repos.map((repo) => (
+                    <option key={repo.id} value={repo.repo_name}>
+                      {repo.repo_name}
+                    </option>
+                  ))}
+                </>
               )}
             </select>
             {noRepos && (
@@ -333,6 +406,34 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
               <Plus className="w-4 h-4 mr-2" />
               New conversation
             </Button>
+
+            {selectedRepo !== "all" && (
+              <div className="pt-2 space-y-2">
+                <label className="text-xs uppercase tracking-wide text-[#64748B] blueprint-label">
+                  Branch Scope
+                </label>
+                <select
+                  value={selectedBranch}
+                  onChange={(e) => setSelectedBranch(e.target.value)}
+                  className="w-full px-3 py-2 rounded-md border-2 border-[#CBD5E1] focus:border-[#38BDF8] focus:outline-none text-sm"
+                >
+                  <option value={selectedRepoObj?.default_branch || "main"}>
+                    {selectedRepoObj?.default_branch || "main"} (Default)
+                  </option>
+                  <option value="all">All Indexed Branches</option>
+                  {selectedRepoObj?.indexed_branches?.map((br) => (
+                    <option key={br} value={br}>
+                      {br}
+                    </option>
+                  ))}
+                  {(!selectedRepoObj?.indexed_branches || selectedRepoObj.indexed_branches.length === 0) && (
+                    <option value={selectedRepoObj?.default_branch || "main"}>
+                      {selectedRepoObj?.default_branch || "main"} (Default)
+                    </option>
+                  )}
+                </select>
+              </div>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {repoConversations.length === 0 ? (
@@ -453,11 +554,11 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                         : "blueprint-card bg-white"
                     }`}
                   >
-                    <p
-                      className={`${message.type === "user" ? "text-white" : "text-[#0F172A]"} leading-relaxed whitespace-pre-line`}
-                    >
-                      {message.content}
-                    </p>
+                    <div className={`${message.type === "user" ? "text-white" : "text-[#0F172A]"} leading-relaxed markdown-content`}>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
 
                     {message.sources && message.sources.length > 0 && (
                       <div className="mt-4 pt-4 border-t-2 border-[#E2E8F0]">
@@ -523,14 +624,6 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                           />
                           Not helpful
                         </Button>
-                        {message.model && (
-                          <span className="ml-auto blueprint-label">
-                            {message.model}
-                            {message.tokens
-                              ? ` · ${message.tokens.toLocaleString()} tokens`
-                              : ""}
-                          </span>
-                        )}
                       </div>
                     )}
                   </Card>
@@ -551,9 +644,31 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
             ))}
 
             {sending && (
-              <div className="flex items-center gap-2 text-[#64748B]">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Thinking…
+              <div className="flex justify-start">
+                <div className="w-full">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-8 h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-white animate-pulse" strokeWidth={1.5} />
+                    </div>
+                    <span className="text-[#64748B] text-sm blueprint-label">
+                      {statusMessage || "Infinium Assistant is thinking..."}
+                    </span>
+                  </div>
+                  <Card className="p-6 border-2 border-dashed border-[#38BDF8] bg-[#F8FAFC]">
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#1E3A8A]" />
+                        <span className="text-sm text-[#1E3A8A] font-medium animate-pulse">
+                          {statusMessage ? "Processing your intelligence..." : "Receiving intelligence from RAG engine..."}
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="h-2 w-3/4 bg-[#E2E8F0] rounded-full animate-pulse"></div>
+                        <div className="h-2 w-1/2 bg-[#E2E8F0] rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
               </div>
             )}
 
