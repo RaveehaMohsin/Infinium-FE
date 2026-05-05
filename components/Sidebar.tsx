@@ -39,6 +39,7 @@ export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
 
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", page: "dashboard" as string },
+    { icon: FolderOpen, label: "Repositories", page: "repositories" as string },
     { icon: MessageSquare, label: "Query Interface", page: "query" as string },
     { icon: Brain, label: "Reasoning", page: "reasoning" as string },
     { icon: Clock, label: "Decision History", page: "decision-history" as string },
