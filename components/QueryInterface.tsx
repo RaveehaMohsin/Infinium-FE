@@ -1,250 +1,624 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Send, 
-  Sparkles, 
-  Clock, 
-  CheckCircle, 
+import {
+  Send,
+  Sparkles,
+  Clock,
+  CheckCircle,
   Copy,
   ThumbsUp,
   ThumbsDown,
   GitCommit,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Loader2,
+  Plus,
+  Trash2,
 } from "lucide-react";
+import {
+  ApiError,
+  Conversation,
+  ConversationMessage,
+  IndexedRepository,
+  QuerySource,
+  queryApi,
+  reposApi,
+} from "@/lib/api";
 
 interface QueryInterfaceProps {
   navigateTo: (page: string) => void;
 }
 
-interface Message {
-  id: number;
+interface DisplayMessage {
+  id: string;
   type: "user" | "assistant";
   content: string;
   timestamp: string;
-  sources?: { type: string; title: string; }[];
-  reasoning?: string;
+  sources?: QuerySource[];
+  model?: string | null;
+  tokens?: number | null;
+}
+
+const greeting: DisplayMessage = {
+  id: "greeting",
+  type: "assistant",
+  content:
+    "Hi! Pick an indexed repository, then ask me anything about its code, history, or architecture.",
+  timestamp: "",
+};
+
+function formatTime(input?: string) {
+  const date = input ? new Date(input) : new Date();
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function sourceLabel(source: QuerySource): string {
+  return (
+    source.title ||
+    source.file_path ||
+    source.repo_name ||
+    (typeof source.type === "string" ? source.type : "Source")
+  );
+}
+
+function sourceIcon(source: QuerySource) {
+  const t = source.type?.toLowerCase() || "";
+  if (t.includes("commit")) return GitCommit;
+  if (t.includes("doc") || source.file_path) return FileText;
+  return AlertCircle;
 }
 
 export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
   const [query, setQuery] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      type: "assistant",
-      content: "Hello! I'm Infinium, your autonomous reasoning agent. I can help you understand your codebase, architecture decisions, and development patterns. Ask me anything!",
-      timestamp: "10:30 AM"
+  const [messages, setMessages] = useState<DisplayMessage[]>([greeting]);
+  const [repos, setRepos] = useState<IndexedRepository[]>([]);
+  const [reposLoading, setReposLoading] = useState(true);
+  const [selectedRepo, setSelectedRepo] = useState<string>("");
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(
+    null
+  );
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const loadRepos = useCallback(async () => {
+    setReposLoading(true);
+    try {
+      const data = await reposApi.listIndexedRepos();
+      const completed = data.repositories.filter(
+        (r) => r.status === "completed"
+      );
+      setRepos(completed);
+      setSelectedRepo((current) => {
+        if (current && completed.some((r) => r.repo_name === current)) {
+          return current;
+        }
+        return completed[0]?.repo_name || "";
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to load repositories";
+      setError(message);
+    } finally {
+      setReposLoading(false);
     }
-  ]);
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const data = await queryApi.listConversations();
+      setConversations(data.conversations);
+    } catch {
+      // non-fatal
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRepos();
+    loadConversations();
+  }, [loadRepos, loadConversations]);
+
+  const repoConversations = useMemo(
+    () => conversations.filter((c) => c.repo_name === selectedRepo),
+    [conversations, selectedRepo]
+  );
+
+  const messagesFromConversation = (msgs: ConversationMessage[]): DisplayMessage[] =>
+    msgs.map((m) => ({
+      id: m.id,
+      type: m.role,
+      content: m.content,
+      timestamp: formatTime(m.created_at),
+      sources: m.sources || undefined,
+      model: m.model_used,
+      tokens: m.tokens_used,
+    }));
+
+  const openConversation = async (id: string) => {
+    setConversationLoading(true);
+    setError(null);
+    try {
+      const detail = await queryApi.getConversation(id);
+      setActiveConversationId(detail.conversation.id);
+      setSelectedRepo(detail.conversation.repo_name);
+      const loaded = messagesFromConversation(detail.messages);
+      setMessages(loaded.length ? loaded : [greeting]);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to load conversation";
+      setError(message);
+    } finally {
+      setConversationLoading(false);
+    }
+  };
+
+  const startNewConversation = () => {
+    setActiveConversationId(null);
+    setMessages([greeting]);
+    setError(null);
+  };
+
+  const handleDeleteConversation = async (id: string) => {
+    if (!window.confirm("Delete this conversation?")) return;
+    try {
+      await queryApi.deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (id === activeConversationId) {
+        startNewConversation();
+      }
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to delete conversation";
+      setError(message);
+    }
+  };
+
+  const handleSendQuery = async () => {
+    const text = query.trim();
+    if (!text || !selectedRepo || sending) return;
+
+    setSending(true);
+    setError(null);
+
+    const userMessage: DisplayMessage = {
+      id: `local-${Date.now()}`,
+      type: "user",
+      content: text,
+      timestamp: formatTime(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
+    setQuery("");
+
+    let conversationId = activeConversationId;
+    try {
+      if (!conversationId) {
+        const conv = await queryApi.startConversation({
+          repo_name: selectedRepo,
+          title: text.slice(0, 80),
+        });
+        conversationId = conv.conversation_id;
+        setActiveConversationId(conversationId);
+        setConversations((prev) => [
+          {
+            id: conv.conversation_id,
+            user_github_id: 0,
+            repo_name: conv.repo_name,
+            title: conv.title,
+            created_at: conv.created_at,
+            updated_at: conv.created_at,
+          },
+          ...prev,
+        ]);
+      }
+
+      const answer = await queryApi.askQuestion({
+        repo_name: selectedRepo,
+        query: text,
+        conversation_id: conversationId,
+      });
+
+      const assistantMessage: DisplayMessage = {
+        id: `assistant-${Date.now()}`,
+        type: "assistant",
+        content: answer.answer,
+        timestamp: formatTime(),
+        sources: answer.sources,
+        model: answer.model,
+        tokens: answer.tokens_used,
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Failed to get an answer";
+      setError(message);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `error-${Date.now()}`,
+          type: "assistant",
+          content: `⚠️ ${message}`,
+          timestamp: formatTime(),
+        },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  };
 
   const suggestedQueries = [
-    "Why was JWT authentication deprecated in v3?",
-    "Show endpoints with recurring 500 errors this week",
-    "What caching patterns are most used across services?",
-    "Explain our microservices architecture evolution"
+    "Walk me through the main entry points of this repo.",
+    "What are the most important modules and how do they fit together?",
+    "Are there any known issues or TODOs?",
+    "Summarize the recent commit history.",
   ];
 
-  const handleSendQuery = () => {
-    if (!query.trim()) return;
+  const handleSuggestedQuery = (suggested: string) => setQuery(suggested);
 
-    const newUserMessage: Message = {
-      id: messages.length + 1,
-      type: "user",
-      content: query,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-
-    setMessages([...messages, newUserMessage]);
-
-    // Simulate AI response
-    setTimeout(() => {
-      const response: Message = {
-        id: messages.length + 2,
-        type: "assistant",
-        content: generateResponse(query),
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        sources: [
-          { type: "commit", title: "feat: migrate from JWT to OAuth2 (#342)" },
-          { type: "docs", title: "Authentication Strategy v3.0" },
-          { type: "pr", title: "PR #342: Security enhancement discussion" }
-        ],
-        reasoning: "I analyzed 15 commits, 3 pull requests, and 2 architecture documents to trace the authentication migration decision."
-      };
-      setMessages(prev => [...prev, response]);
-    }, 1500);
-
-    setQuery("");
-  };
-
-  const generateResponse = (query: string) => {
-    if (query.toLowerCase().includes("jwt") || query.toLowerCase().includes("authentication")) {
-      return "JWT authentication was deprecated in v3 due to security concerns and scalability requirements. The team migrated to OAuth2 with refresh token rotation for better security. This decision was made in PR #342 after discovering session management issues in the JWT implementation. The migration was completed over 3 sprints with zero downtime.";
-    }
-    if (query.toLowerCase().includes("500 errors") || query.toLowerCase().includes("errors")) {
-      return "Based on CI/CD logs and Sentry reports from the past week, I found 3 endpoints with recurring 500 errors:\n\n1. /api/v2/users/profile - 47 errors (Database connection timeout)\n2. /api/v2/orders/checkout - 23 errors (Payment gateway integration)\n3. /api/v2/analytics/reports - 18 errors (Memory overflow)\n\nThe most critical is the users/profile endpoint affecting 1,200+ users.";
-    }
-    if (query.toLowerCase().includes("caching")) {
-      return "Across your services, I identified 3 primary caching patterns:\n\n1. Redis for session storage (8 services)\n2. In-memory LRU cache for API responses (12 services)\n3. CDN caching for static assets (All frontend services)\n\nThe Redis pattern is most commonly used for user-related data with TTL of 3600s.";
-    }
-    return "I've analyzed your codebase and found relevant information. Based on the context from your repositories, documentation, and commit history, here's what I discovered...";
-  };
-
-  const handleSuggestedQuery = (suggested: string) => {
-    setQuery(suggested);
-  };
+  const noRepos = !reposLoading && repos.length === 0;
 
   return (
     <div className="flex h-screen bg-white blueprint-bg">
       <Sidebar currentPage="query" navigateTo={navigateTo} />
-      
-      <main className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white border-b-2 border-[#1E3A8A] px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-8 bg-[#38BDF8]"></div>
-              <div>
-                <h1 className="text-3xl font-bold text-[#0F172A]">Query Interface</h1>
-                <p className="text-[#64748B] mt-1">Ask questions about your codebase and get reasoning-based answers</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="border-2 border-[#38BDF8] text-[#38BDF8]">
-                <span className="w-2 h-2 bg-[#38BDF8] rounded-full mr-2 blueprint-pulse"></span>
-                RAG Engine Active
-              </Badge>
-            </div>
+
+      <main className="flex-1 flex">
+        {/* Conversation list */}
+        <aside className="w-72 border-r-2 border-[#E2E8F0] bg-white flex flex-col">
+          <div className="p-4 border-b-2 border-[#E2E8F0] space-y-2">
+            <label className="text-xs uppercase tracking-wide text-[#64748B] blueprint-label">
+              Repository
+            </label>
+            <select
+              value={selectedRepo}
+              onChange={(e) => {
+                setSelectedRepo(e.target.value);
+                startNewConversation();
+              }}
+              disabled={reposLoading || noRepos}
+              className="w-full px-3 py-2 rounded-md border-2 border-[#CBD5E1] focus:border-[#38BDF8] focus:outline-none text-sm"
+            >
+              {reposLoading ? (
+                <option>Loading…</option>
+              ) : noRepos ? (
+                <option>No indexed repos</option>
+              ) : (
+                repos.map((repo) => (
+                  <option key={repo.id} value={repo.repo_name}>
+                    {repo.repo_name}
+                  </option>
+                ))
+              )}
+            </select>
+            {noRepos && (
+              <button
+                onClick={() => navigateTo("datasources")}
+                className="w-full text-xs text-[#1E3A8A] hover:text-[#38BDF8] underline text-left"
+              >
+                Index a repository to get started →
+              </button>
+            )}
+            <Button
+              onClick={startNewConversation}
+              disabled={noRepos}
+              className="w-full bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8]"
+              size="sm"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New conversation
+            </Button>
           </div>
-        </header>
-
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-8 space-y-6">
-          {messages.map((message) => (
-            <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-3xl ${message.type === 'user' ? 'w-auto' : 'w-full'}`}>
-                {message.type === 'assistant' && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
-                      <Sparkles className="w-4 h-4 text-white" strokeWidth={1.5} />
-                    </div>
-                    <span className="text-[#64748B] text-sm blueprint-label">Infinium Assistant</span>
-                    <span className="text-[#CBD5E1] text-xs">{message.timestamp}</span>
-                  </div>
-                )}
-                
-                <Card className={`p-6 border-2 ${
-                  message.type === 'user' 
-                    ? 'bg-[#1E3A8A] border-[#1E3A8A]' 
-                    : 'blueprint-card bg-white'
-                }`}>
-                  <p className={`${message.type === 'user' ? 'text-white' : 'text-[#0F172A]'} leading-relaxed whitespace-pre-line`}>
-                    {message.content}
-                  </p>
-
-                  {message.reasoning && (
-                    <div className="mt-4 pt-4 border-t-2 border-[#E2E8F0]">
-                      <p className="text-[#64748B] text-sm flex items-center gap-2">
-                        <Sparkles className="w-4 h-4" strokeWidth={1.5} />
-                        <span className="italic">{message.reasoning}</span>
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
+            {repoConversations.length === 0 ? (
+              <p className="text-xs text-[#64748B] px-2 py-4">
+                No conversations yet for this repo.
+              </p>
+            ) : (
+              repoConversations.map((conv) => {
+                const isActive = conv.id === activeConversationId;
+                return (
+                  <div
+                    key={conv.id}
+                    className={`group flex items-start gap-2 p-3 rounded-md border-2 transition-colors cursor-pointer ${
+                      isActive
+                        ? "border-[#1E3A8A] bg-[#F1F5FF]"
+                        : "border-[#E2E8F0] hover:border-[#38BDF8]"
+                    }`}
+                    onClick={() => openConversation(conv.id)}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-[#0F172A] truncate">
+                        {conv.title}
+                      </p>
+                      <p className="text-xs text-[#64748B] mt-1">
+                        {new Date(conv.updated_at).toLocaleString()}
                       </p>
                     </div>
-                  )}
-
-                  {message.sources && (
-                    <div className="mt-4 pt-4 border-t-2 border-[#E2E8F0]">
-                      <p className="text-[#64748B] text-sm mb-3 blueprint-label">Sources referenced:</p>
-                      <div className="space-y-2">
-                        {message.sources.map((source, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-sm border-2 border-[#E2E8F0] p-2 rounded-sm hover:border-[#38BDF8] transition-colors">
-                            {source.type === 'commit' && <GitCommit className="w-4 h-4 text-[#1E3A8A]" strokeWidth={1.5} />}
-                            {source.type === 'docs' && <FileText className="w-4 h-4 text-[#FACC15]" strokeWidth={1.5} />}
-                            {source.type === 'pr' && <AlertCircle className="w-4 h-4 text-[#38BDF8]" strokeWidth={1.5} />}
-                            <span className="text-[#0F172A]">{source.title}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {message.type === 'assistant' && (
-                    <div className="flex items-center gap-2 mt-4 pt-4 border-t-2 border-[#E2E8F0]">
-                      <Button size="sm" variant="ghost" className="text-[#64748B] hover:text-[#1E3A8A]">
-                        <Copy className="w-4 h-4 mr-2" strokeWidth={1.5} />
-                        Copy
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-[#64748B] hover:text-[#38BDF8]">
-                        <ThumbsUp className="w-4 h-4 mr-2" strokeWidth={1.5} />
-                        Helpful
-                      </Button>
-                      <Button size="sm" variant="ghost" className="text-[#64748B] hover:text-[#EF4444]">
-                        <ThumbsDown className="w-4 h-4 mr-2" strokeWidth={1.5} />
-                        Not helpful
-                      </Button>
-                    </div>
-                  )}
-                </Card>
-
-                {message.type === 'user' && (
-                  <div className="flex items-center justify-end gap-2 mt-2">
-                    <span className="text-[#CBD5E1] text-xs blueprint-label">{message.timestamp}</span>
-                    <CheckCircle className="w-4 h-4 text-[#38BDF8]" strokeWidth={1.5} />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteConversation(conv.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-[#64748B] hover:text-[#EF4444]"
+                      aria-label="Delete conversation"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                )}
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        {/* Conversation column */}
+        <section className="flex-1 flex flex-col min-w-0">
+          <header className="bg-white border-b-2 border-[#1E3A8A] px-8 py-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-1 h-8 bg-[#38BDF8]"></div>
+                <div className="min-w-0">
+                  <h1 className="text-3xl font-bold text-[#0F172A]">
+                    Query Interface
+                  </h1>
+                  <p className="text-[#64748B] mt-1 truncate">
+                    {selectedRepo
+                      ? `Asking about "${selectedRepo}"`
+                      : "Pick an indexed repo to start asking questions"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Badge
+                  variant="outline"
+                  className="border-2 border-[#38BDF8] text-[#38BDF8]"
+                >
+                  <span className="w-2 h-2 bg-[#38BDF8] rounded-full mr-2 blueprint-pulse"></span>
+                  RAG Engine
+                </Badge>
               </div>
             </div>
-          ))}
+          </header>
 
-          {/* Suggested Queries */}
-          {messages.length === 1 && (
-            <div className="max-w-3xl">
-              <p className="text-[#64748B] text-sm mb-4 blueprint-label">Try asking:</p>
-              <div className="grid grid-cols-2 gap-3">
-                {suggestedQueries.map((suggested, idx) => (
-                  <Card 
-                    key={idx}
-                    onClick={() => handleSuggestedQuery(suggested)}
-                    className="blueprint-card p-4 bg-white hover:border-[#38BDF8] cursor-pointer transition-colors"
-                  >
-                    <p className="text-[#0F172A] text-sm">{suggested}</p>
-                  </Card>
-                ))}
+          {error && (
+            <div className="px-8 pt-4">
+              <div className="rounded-md border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
               </div>
             </div>
           )}
-        </div>
 
-        {/* Input Area */}
-        <div className="border-t-2 border-[#1E3A8A] bg-white p-6">
-          <div className="max-w-4xl mx-auto">
-            <div className="flex gap-4">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendQuery()}
-                placeholder="Ask about architecture, code patterns, errors, or anything else..."
-                className="flex-1 border-2 border-[#CBD5E1] text-[#0F172A] placeholder:text-[#CBD5E1] focus:border-[#38BDF8]"
-              />
-              <Button 
-                onClick={handleSendQuery}
-                disabled={!query.trim()}
-                className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8]"
+          <div className="flex-1 overflow-y-auto p-8 space-y-6">
+            {conversationLoading && (
+              <div className="flex items-center gap-2 text-[#64748B]">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading conversation…
+              </div>
+            )}
+
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
               >
-                <Send className="w-4 h-4 mr-2" strokeWidth={1.5} />
-                Send
-              </Button>
-            </div>
-            <p className="text-[#64748B] text-xs mt-3 flex items-center gap-1 blueprint-label">
-              <Clock className="w-3 h-3" strokeWidth={1.5} />
-              Powered by GPT-4o + RAG Engine | Average response time: 1.2s
-            </p>
+                <div
+                  className={`max-w-3xl ${message.type === "user" ? "w-auto" : "w-full"}`}
+                >
+                  {message.type === "assistant" && (
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-8 h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
+                        <Sparkles className="w-4 h-4 text-white" strokeWidth={1.5} />
+                      </div>
+                      <span className="text-[#64748B] text-sm blueprint-label">
+                        Infinium Assistant
+                      </span>
+                      {message.timestamp && (
+                        <span className="text-[#CBD5E1] text-xs">
+                          {message.timestamp}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <Card
+                    className={`p-6 border-2 ${
+                      message.type === "user"
+                        ? "bg-[#1E3A8A] border-[#1E3A8A]"
+                        : "blueprint-card bg-white"
+                    }`}
+                  >
+                    <p
+                      className={`${message.type === "user" ? "text-white" : "text-[#0F172A]"} leading-relaxed whitespace-pre-line`}
+                    >
+                      {message.content}
+                    </p>
+
+                    {message.sources && message.sources.length > 0 && (
+                      <div className="mt-4 pt-4 border-t-2 border-[#E2E8F0]">
+                        <p className="text-[#64748B] text-sm mb-3 blueprint-label">
+                          Sources referenced:
+                        </p>
+                        <div className="space-y-2">
+                          {message.sources.map((source, idx) => {
+                            const Icon = sourceIcon(source);
+                            return (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-2 text-sm border-2 border-[#E2E8F0] p-2 rounded-sm hover:border-[#38BDF8] transition-colors"
+                              >
+                                <Icon
+                                  className="w-4 h-4 text-[#1E3A8A]"
+                                  strokeWidth={1.5}
+                                />
+                                <span className="text-[#0F172A] truncate">
+                                  {sourceLabel(source)}
+                                </span>
+                                {typeof source.score === "number" && (
+                                  <span className="ml-auto text-xs text-[#64748B]">
+                                    {source.score.toFixed(2)}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {message.type === "assistant" && message.id !== "greeting" && (
+                      <div className="flex items-center gap-2 mt-4 pt-4 border-t-2 border-[#E2E8F0] text-xs text-[#64748B]">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            navigator.clipboard?.writeText(message.content)
+                          }
+                          className="text-[#64748B] hover:text-[#1E3A8A]"
+                        >
+                          <Copy className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                          Copy
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-[#64748B] hover:text-[#38BDF8]"
+                        >
+                          <ThumbsUp className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                          Helpful
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-[#64748B] hover:text-[#EF4444]"
+                        >
+                          <ThumbsDown
+                            className="w-4 h-4 mr-2"
+                            strokeWidth={1.5}
+                          />
+                          Not helpful
+                        </Button>
+                        {message.model && (
+                          <span className="ml-auto blueprint-label">
+                            {message.model}
+                            {message.tokens
+                              ? ` · ${message.tokens.toLocaleString()} tokens`
+                              : ""}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </Card>
+
+                  {message.type === "user" && (
+                    <div className="flex items-center justify-end gap-2 mt-2">
+                      <span className="text-[#CBD5E1] text-xs blueprint-label">
+                        {message.timestamp}
+                      </span>
+                      <CheckCircle
+                        className="w-4 h-4 text-[#38BDF8]"
+                        strokeWidth={1.5}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {sending && (
+              <div className="flex items-center gap-2 text-[#64748B]">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Thinking…
+              </div>
+            )}
+
+            {messages.length === 1 && !noRepos && (
+              <div className="max-w-3xl">
+                <p className="text-[#64748B] text-sm mb-4 blueprint-label">
+                  Try asking:
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  {suggestedQueries.map((suggested, idx) => (
+                    <Card
+                      key={idx}
+                      onClick={() => handleSuggestedQuery(suggested)}
+                      className="blueprint-card p-4 bg-white hover:border-[#38BDF8] cursor-pointer transition-colors"
+                    >
+                      <p className="text-[#0F172A] text-sm">{suggested}</p>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
-        </div>
+
+          <div className="border-t-2 border-[#1E3A8A] bg-white p-6">
+            <div className="max-w-4xl mx-auto">
+              <div className="flex gap-4">
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendQuery();
+                    }
+                  }}
+                  placeholder={
+                    noRepos
+                      ? "Index a repo before asking questions"
+                      : "Ask about architecture, code patterns, errors, or anything else…"
+                  }
+                  disabled={sending || noRepos}
+                  className="flex-1 border-2 border-[#CBD5E1] text-[#0F172A] placeholder:text-[#CBD5E1] focus:border-[#38BDF8]"
+                />
+                <Button
+                  onClick={handleSendQuery}
+                  disabled={!query.trim() || sending || noRepos}
+                  className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8]"
+                >
+                  {sending ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                  )}
+                  Send
+                </Button>
+              </div>
+              <p className="text-[#64748B] text-xs mt-3 flex items-center gap-1 blueprint-label">
+                <Clock className="w-3 h-3" strokeWidth={1.5} />
+                Powered by your indexed repos via Infinium's RAG engine.
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
     </div>
   );
