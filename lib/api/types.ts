@@ -77,6 +77,7 @@ export interface IndexedRepository {
   files_count: number;
   commits_count: number;
   indexed_at: string | null;
+  has_branch_index?: boolean;
   error_message: string | null;
   indexed_branches?: string[];
   created_at: string;
@@ -161,6 +162,7 @@ export interface Documentation {
   type: DocumentationType;
   doc_type: DocumentationType;
   markdown: string;
+  content?: string;
   sources: QuerySource[];
   model: string | null;
   tokens_used: number;
@@ -237,6 +239,7 @@ export interface DashboardStats {
       language: string | null;
       chunks: number;
       indexed_at: string;
+      has_branch_index?: boolean;
     }[];
   };
   performance_stats: {
