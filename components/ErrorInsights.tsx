@@ -129,11 +129,12 @@ export function ErrorInsights({ navigateTo }: ErrorInsightsProps) {
         }
     };
 
-    const getCategoryColor = (category: ErrorPattern["category"]) => {
+    const getCategoryStyles = (category: ErrorPattern["category"]) => {
         switch (category) {
-            case "api": return "blue";
-            case "database": return "purple";
-            case "frontend": return "orange";
+            case "api": return "bg-blue-50 text-blue-700 border-blue-100";
+            case "database": return "bg-purple-50 text-purple-700 border-purple-100";
+            case "frontend": return "bg-orange-50 text-orange-700 border-orange-100";
+            default: return "bg-gray-50 text-gray-700 border-gray-100";
         }
     };
 
@@ -219,7 +220,6 @@ export function ErrorInsights({ navigateTo }: ErrorInsightsProps) {
                     <div className="max-w-6xl mx-auto space-y-4">
                         {filteredErrors.map((error) => {
                             const isExpanded = expandedError === error.id;
-                            const categoryColor = getCategoryColor(error.category);
                             const CategoryIcon = getCategoryIcon(error.category);
 
                             return (
@@ -233,7 +233,7 @@ export function ErrorInsights({ navigateTo }: ErrorInsightsProps) {
                                         onClick={() => setExpandedError(isExpanded ? null : error.id)}
                                     >
                                         <div className="flex items-start gap-4">
-                                            <div className={`p-3 bg-${categoryColor}-50 rounded-lg`}>
+                                            <div className={`p-3 ${getCategoryStyles(error.category)} rounded-lg`}>
                                                 {CategoryIcon}
                                             </div>
 
@@ -244,7 +244,7 @@ export function ErrorInsights({ navigateTo }: ErrorInsightsProps) {
                                                             <span className="text-sm font-mono text-gray-500 font-['Inter']">
                                                                 {error.id}
                                                             </span>
-                                                            <span className={`px-2 py-1 bg-${categoryColor}-100 text-${categoryColor}-700 text-xs rounded-full font-['Inter']`}>
+                                                            <span className={`px-2 py-1 ${getCategoryStyles(error.category)} text-xs rounded-full font-['Inter'] border`}>
                                                                 {error.category}
                                                             </span>
                                                             {getTrendIcon(error.trend)}

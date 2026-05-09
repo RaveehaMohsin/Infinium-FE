@@ -120,12 +120,13 @@ export function ReasoningInterface({ navigateTo }: ReasoningInterfaceProps) {
         }
     };
 
-    const getEvidenceColor = (type: Evidence["type"]) => {
+    const getEvidenceStyles = (type: Evidence["type"]) => {
         switch (type) {
-            case "commit": return "blue";
-            case "doc": return "purple";
-            case "log": return "orange";
-            case "code": return "green";
+            case "commit": return { bg: "bg-blue-50", text: "text-blue-600", iconBg: "bg-blue-50", iconText: "text-blue-600" };
+            case "doc": return { bg: "bg-purple-50", text: "text-purple-600", iconBg: "bg-purple-50", iconText: "text-purple-600" };
+            case "log": return { bg: "bg-orange-50", text: "text-orange-600", iconBg: "bg-orange-50", iconText: "text-orange-600" };
+            case "code": return { bg: "bg-green-50", text: "text-green-600", iconBg: "bg-green-50", iconText: "text-green-600" };
+            default: return { bg: "bg-gray-50", text: "text-gray-600", iconBg: "bg-gray-50", iconText: "text-gray-600" };
         }
     };
 
@@ -222,8 +223,8 @@ export function ReasoningInterface({ navigateTo }: ReasoningInterfaceProps) {
                                             onClick={() => setQuery(item.label)}
                                             className="p-4 bg-white border border-gray-200 rounded-xl hover:border-purple-300 hover:shadow-md transition-all text-left flex items-start gap-4 group"
                                         >
-                                            <div className={`p-2 bg-${item.color}-50 rounded-lg group-hover:bg-${item.color}-100 transition-colors`}>
-                                                <Icon className={`w-5 h-5 text-${item.color}-600`} />
+                                            <div className={`p-2 bg-purple-50 rounded-lg group-hover:bg-purple-100 transition-colors`}>
+                                                <Icon className={`w-5 h-5 text-purple-600`} />
                                             </div>
                                             <div>
                                                 <p className="font-medium text-gray-900 group-hover:text-purple-700 transition-colors">{item.label}</p>
@@ -260,7 +261,7 @@ export function ReasoningInterface({ navigateTo }: ReasoningInterfaceProps) {
                                             </div>
                                             {msg.evidence.map((evidence, idx) => {
                                                 const Icon = getEvidenceIcon(evidence.type);
-                                                const color = getEvidenceColor(evidence.type);
+                                                const styles = getEvidenceStyles(evidence.type);
                                                 const isExpanded = expandedEvidence === `${msg.id}-${idx}`;
 
                                                 return (
@@ -272,8 +273,8 @@ export function ReasoningInterface({ navigateTo }: ReasoningInterfaceProps) {
                                                             onClick={() => setExpandedEvidence(isExpanded ? null : `${msg.id}-${idx}`)}
                                                             className="w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 transition-colors"
                                                         >
-                                                            <div className={`p-2 bg-${color}-50 rounded-lg`}>
-                                                                <Icon className={`w-4 h-4 text-${color}-600`} />
+                                                            <div className={`p-2 ${styles.bg} rounded-lg`}>
+                                                                <Icon className={`w-4 h-4 ${styles.text}`} />
                                                             </div>
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center justify-between">

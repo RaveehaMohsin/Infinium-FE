@@ -234,9 +234,18 @@ export function Dashboard({ navigateTo }: DashboardProps) {
                         </div>
                       </div>
                       <div className="flex items-center justify-between mt-3 pt-3 border-t border-[#E2E8F0]">
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F8FAFC] border border-[#E2E8F0] text-[#64748B]">
-                          {repo.language || "Unknown"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-sm bg-[#F8FAFC] border border-[#E2E8F0] text-[#64748B]">
+                            {repo.language || "Unknown"}
+                          </span>
+                          <button
+                            onClick={() => navigateTo(`query?repo=${repo.repo_name}`)}
+                            className="flex items-center gap-1 text-[10px] font-bold text-[#1E3A8A] hover:text-[#38BDF8] transition-colors"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            Chat
+                          </button>
+                        </div>
                         <span className="text-[#64748B] text-[10px] blueprint-label">
                           Indexed {new Date(repo.indexed_at).toLocaleDateString()}
                         </span>
