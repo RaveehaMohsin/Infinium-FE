@@ -1,15 +1,15 @@
 "use client";
 
-import { QueryInterface } from "@/components/QueryInterface";
+import { PdfViewer } from "@/components/PdfViewer";
 import { useRouter } from "next/navigation";
 import { RequireAuth } from "@/lib/require-auth";
 
-export default function Page() {
+export default function PdfPage() {
   const router = useRouter();
 
   return (
     <RequireAuth>
-      <QueryInterface navigateTo={(page) => router.push(`/${page}`)} />
+      <PdfViewer navigateTo={(page) => router.push(`/${page}`)} />
     </RequireAuth>
   );
 }

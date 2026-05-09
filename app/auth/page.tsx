@@ -9,7 +9,7 @@ export default function Auth() {
   return (
     <AuthPage
       onLogin={() => router.push("/dashboard")}
-      onSignUp={() => router.push("/email-verification")}
+      onSignUp={() => router.push("/dashboard")}
     />
   );
 }

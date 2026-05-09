@@ -1,0 +1,70 @@
+.markdown-content {
+  @apply space-y-4 overflow-x-hidden break-words;
+}
+
+.markdown-content h1 {
+  @apply text-2xl font-bold border-b-2 border-[#1E3A8A] pb-2 mb-4 text-[#0F172A];
+}
+
+.markdown-content h2 {
+  @apply text-xl font-bold border-l-4 border-[#38BDF8] pl-3 mb-3 text-[#0F172A];
+}
+
+.markdown-content h3 {
+  @apply text-lg font-semibold text-[#1E3A8A] mb-2;
+}
+
+.markdown-content p {
+  @apply leading-relaxed mb-4;
+}
+
+.markdown-content ul {
+  @apply list-disc pl-6 space-y-2 mb-4;
+}
+
+.markdown-content ol {
+  @apply list-decimal pl-6 space-y-2 mb-4;
+}
+
+.markdown-content code {
+  @apply bg-[#F1F5F9] px-1.5 py-0.5 rounded-sm font-mono text-sm text-[#1E3A8A] border border-[#E2E8F0];
+}
+
+.markdown-content pre {
+  @apply bg-[#0F172A] text-[#F8FAFC] p-4 rounded-md overflow-x-auto my-6 border-2 border-[#1E3A8A] shadow-inner;
+}
+
+.markdown-content pre code {
+  @apply bg-transparent border-none p-0 text-[#F8FAFC] text-xs;
+}
+
+.markdown-content table {
+  @apply block w-full border-collapse my-6 border-2 border-[#E2E8F0] shadow-sm overflow-x-auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.markdown-content th {
+  @apply bg-[#F8FAFC] border-2 border-[#E2E8F0] px-4 py-2 text-left font-bold text-[#1E3A8A] text-sm;
+}
+
+.markdown-content td {
+  @apply border-2 border-[#E2E8F0] px-4 py-2 text-sm text-[#0F172A];
+}
+
+.markdown-content blockquote {
+  @apply border-l-4 border-[#1E3A8A] bg-[#F1F5FF] pl-4 py-2 italic my-4 rounded-r-sm;
+}
+
+/* Specific overrides for user messages (white text) */
+.text-white.markdown-content h1,
+.text-white.markdown-content h2,
+.text-white.markdown-content h3,
+.text-white.markdown-content p,
+.text-white.markdown-content li,
+.text-white.markdown-content td {
+  @apply text-white border-blue-400/30;
+}
+
+.text-white.markdown-content code {
+  @apply bg-blue-900/30 text-blue-100 border-blue-800/50;
+}
