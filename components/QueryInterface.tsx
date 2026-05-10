@@ -83,10 +83,8 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
   const [reposLoading, setReposLoading] = useState(true);
   const [selectedRepo, setSelectedRepo] = useState<string>("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(
-    null
-  );
-  const [selectedBranch, setSelectedBranch] = useState<string>(""); // Default to empty, will be set when repo is picked
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] = useState<string>("");
   const [conversationLoading, setConversationLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,19 +101,16 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
     setReposLoading(true);
     try {
       const data = await reposApi.listIndexedRepos();
-      const completed = data.repositories.filter(
-        (r) => r.status === "completed"
-      );
+      const completed = data.repositories.filter((r) => r.status === "completed");
       setRepos(completed);
       setSelectedRepo((current) => {
         const target = repoFromUrl || current;
-        const selected = target && completed.some((r) => r.repo_name === target)
-          ? target
-          : completed[0]?.repo_name || "";
-        
+        const selected =
+          target && completed.some((r) => r.repo_name === target)
+            ? target
+            : completed[0]?.repo_name || "";
         if (selected) {
-          const repo = completed.find(r => r.repo_name === selected);
-          // Default to "all" if it has multiple branches, otherwise default branch or main
+          const repo = completed.find((r) => r.repo_name === selected);
           const branches = repo?.indexed_branches || [];
           if (repo?.has_branch_index || branches.length > 1) {
             setSelectedBranch("all");
@@ -263,13 +258,13 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
       }
 
       const assistantMessageId = `assistant-${Date.now()}`;
-      
+
       if (selectedRepo === "all") {
         setStatusMessage("Reasoning across multiple repositories...");
         const answer = await queryApi.askAllRepos({
           query: text,
         });
-        
+
         const assistantMessage: DisplayMessage = {
           id: assistantMessageId,
           type: "assistant",
@@ -282,13 +277,13 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
         setMessages((prev) => [...prev, assistantMessage]);
       } else {
         setStatusMessage("Analyzing your question...");
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise((r) => setTimeout(r, 600));
         setStatusMessage("Searching codebase for relevant snippets...");
-        await new Promise(r => setTimeout(r, 800));
+        await new Promise((r) => setTimeout(r, 800));
         setStatusMessage("Retrieving repository context and commits...");
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise((r) => setTimeout(r, 600));
         setStatusMessage("Synthesizing answer with AI RAG engine...");
-        
+
         let fullContent = "";
         let hasStartedStreaming = false;
         const stream = queryApi.streamQuestion({
@@ -301,8 +296,8 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
         for await (const chunk of stream) {
           if (!hasStartedStreaming) {
             hasStartedStreaming = true;
-            setStatusMessage(null); // Hide status as soon as first chunk arrives
-            
+            setStatusMessage(null);
+
             const placeholder: DisplayMessage = {
               id: assistantMessageId,
               type: "assistant",
@@ -311,13 +306,17 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
             };
             setMessages((prev) => [...prev, placeholder]);
           }
-          
+
           fullContent += chunk;
-          setMessages((prev) => 
-            prev.map(m => m.id === assistantMessageId ? {
-              ...m,
-              content: fullContent,
-            } : m)
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMessageId
+                ? {
+                    ...m,
+                    content: fullContent,
+                  }
+                : m
+            )
           );
         }
       }
@@ -330,7 +329,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
             : "Failed to get an answer";
       setError(message);
       setMessages((prev) => [
-        ...prev.filter(m => m.content !== ""), // Remove placeholder if empty
+        ...prev.filter((m) => m.content !== ""),
         {
           id: `error-${Date.now()}`,
           type: "assistant",
@@ -356,13 +355,13 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
   const noRepos = !reposLoading && repos.length === 0;
 
   return (
-    <div className="flex h-screen bg-white blueprint-bg">
+    <div className="flex h-screen bg-white blueprint-bg overflow-hidden">
       <Sidebar currentPage="query" navigateTo={navigateTo} />
 
-      <main className="flex-1 flex">
-        {/* Conversation list */}
-        <aside className="w-72 border-r-2 border-[#E2E8F0] bg-white flex flex-col">
-          <div className="p-4 border-b-2 border-[#E2E8F0] space-y-2">
+      <main className="flex-1 flex flex-col md:flex-row">
+        {/* Conversation list - Responsive Sidebar */}
+        <aside className="w-full md:w-72 border-b-2 md:border-b-0 md:border-r-2 border-[#E2E8F0] bg-white flex flex-col max-h-[40vh] md:max-h-full overflow-y-auto">
+          <div className="p-4 border-b-2 border-[#E2E8F0] space-y-2 sticky top-0 bg-white z-10">
             <label className="text-xs uppercase tracking-wide text-[#64748B] blueprint-label">
               Repository
             </label>
@@ -370,7 +369,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
               value={selectedRepo}
               onChange={(e) => {
                 setSelectedRepo(e.target.value);
-                const repo = repos.find(r => r.repo_name === e.target.value);
+                const repo = repos.find((r) => r.repo_name === e.target.value);
                 setSelectedBranch(repo?.default_branch || "main");
                 startNewConversation();
               }}
@@ -429,7 +428,8 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                       {br}
                     </option>
                   ))}
-                  {(!selectedRepoObj?.indexed_branches || selectedRepoObj.indexed_branches.length === 0) && (
+                  {(!selectedRepoObj?.indexed_branches ||
+                    selectedRepoObj.indexed_branches.length === 0) && (
                     <option value={selectedRepoObj?.default_branch || "main"}>
                       {selectedRepoObj?.default_branch || "main"} (Default)
                     </option>
@@ -481,17 +481,17 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
           </div>
         </aside>
 
-        {/* Conversation column */}
-        <section className="flex-1 flex flex-col min-w-0">
-          <header className="bg-white border-b-2 border-[#1E3A8A] px-8 py-6">
-            <div className="flex items-center justify-between gap-4">
+        {/* Conversation column - Responsive */}
+        <section className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <header className="bg-white border-b-2 border-[#1E3A8A] px-4 sm:px-8 py-4 sm:py-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-1 h-8 bg-[#38BDF8]"></div>
+                <div className="w-1 h-6 sm:h-8 bg-[#38BDF8]"></div>
                 <div className="min-w-0">
-                  <h1 className="text-3xl font-bold text-[#0F172A]">
+                  <h1 className="text-xl sm:text-3xl font-bold text-[#0F172A]">
                     Query Interface
                   </h1>
-                  <p className="text-[#64748B] mt-1 truncate">
+                  <p className="text-sm text-[#64748B] mt-1 truncate">
                     {selectedRepo
                       ? `Asking about "${selectedRepo}"`
                       : "Pick an indexed repo to start asking questions"}
@@ -501,7 +501,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Badge
                   variant="outline"
-                  className="border-2 border-[#38BDF8] text-[#38BDF8]"
+                  className="border-2 border-[#38BDF8] text-[#38BDF8] text-xs sm:text-sm"
                 >
                   <span className="w-2 h-2 bg-[#38BDF8] rounded-full mr-2 blueprint-pulse"></span>
                   RAG Engine
@@ -511,14 +511,14 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
           </header>
 
           {error && (
-            <div className="px-8 pt-4">
+            <div className="px-4 sm:px-8 pt-4">
               <div className="rounded-md border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-8 space-y-6">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4 sm:space-y-6">
             {conversationLoading && (
               <div className="flex items-center gap-2 text-[#64748B]">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -532,18 +532,18 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                 className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-3xl ${message.type === "user" ? "w-auto" : "w-full"}`}
+                  className={`max-w-[90%] sm:max-w-3xl ${message.type === "user" ? "w-auto" : "w-full"}`}
                 >
                   {message.type === "assistant" && (
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-8 h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
-                        <Sparkles className="w-4 h-4 text-white" strokeWidth={1.5} />
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
+                        <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" strokeWidth={1.5} />
                       </div>
-                      <span className="text-[#64748B] text-sm blueprint-label">
+                      <span className="text-[#64748B] text-xs sm:text-sm blueprint-label">
                         Infinium Assistant
                       </span>
                       {message.timestamp && (
-                        <span className="text-[#CBD5E1] text-xs">
+                        <span className="text-[#CBD5E1] text-[10px] sm:text-xs">
                           {message.timestamp}
                         </span>
                       )}
@@ -551,13 +551,17 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                   )}
 
                   <Card
-                    className={`p-6 border-2 ${
+                    className={`p-4 sm:p-6 border-2 ${
                       message.type === "user"
                         ? "bg-[#1E3A8A] border-[#1E3A8A]"
                         : "blueprint-card bg-white"
                     }`}
                   >
-                    <div className={`${message.type === "user" ? "text-white" : "text-[#0F172A]"} leading-relaxed markdown-content`}>
+                    <div
+                      className={`${
+                        message.type === "user" ? "text-white" : "text-[#0F172A]"
+                      } leading-relaxed markdown-content text-sm sm:text-base`}
+                    >
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {message.content}
                       </ReactMarkdown>
@@ -565,7 +569,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
 
                     {message.sources && message.sources.length > 0 && (
                       <div className="mt-4 pt-4 border-t-2 border-[#E2E8F0]">
-                        <p className="text-[#64748B] text-sm mb-3 blueprint-label">
+                        <p className="text-[#64748B] text-xs sm:text-sm mb-3 blueprint-label">
                           Sources referenced:
                         </p>
                         <div className="space-y-2">
@@ -574,17 +578,17 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                             return (
                               <div
                                 key={idx}
-                                className="flex items-center gap-2 text-sm border-2 border-[#E2E8F0] p-2 rounded-sm hover:border-[#38BDF8] transition-colors"
+                                className="flex items-center gap-2 text-xs sm:text-sm border-2 border-[#E2E8F0] p-2 rounded-sm hover:border-[#38BDF8] transition-colors"
                               >
                                 <Icon
-                                  className="w-4 h-4 text-[#1E3A8A]"
+                                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#1E3A8A]"
                                   strokeWidth={1.5}
                                 />
                                 <span className="text-[#0F172A] truncate">
                                   {sourceLabel(source)}
                                 </span>
                                 {typeof source.score === "number" && (
-                                  <span className="ml-auto text-xs text-[#64748B]">
+                                  <span className="ml-auto text-[10px] sm:text-xs text-[#64748B]">
                                     {source.score.toFixed(2)}
                                   </span>
                                 )}
@@ -596,44 +600,42 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                     )}
 
                     {message.type === "assistant" && message.id !== "greeting" && (
-                      <div className="flex items-center gap-3 mt-4 pt-4 border-t-2 border-[#E2E8F0] text-xs text-[#64748B] flex-wrap">
+                      <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t-2 border-[#E2E8F0] text-[10px] sm:text-xs text-[#64748B]">
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() =>
-                            navigator.clipboard?.writeText(message.content)
-                          }
-                          className="text-[#64748B] hover:text-[#1E3A8A]"
+                          onClick={() => navigator.clipboard?.writeText(message.content)}
+                          className="text-[#64748B] hover:text-[#1E3A8A] h-8 px-2 sm:px-3"
                         >
-                          <Copy className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                          <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" strokeWidth={1.5} />
                           Copy
                         </Button>
-                        <FeedbackButtons
-                          targetType="query"
-                          targetId={`${activeConversationId || ""}:${message.id}`}
-                          query={
-                            messages.find((m, i) =>
-                              i < messages.indexOf(message) && m.type === "user"
-                            )?.content || ""
-                          }
-                          answer={message.content}
-                          repoName={selectedRepo}
-                          metadata={{ sources: message.sources?.length || 0 }}
-                          compact
-                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-[#64748B] hover:text-[#38BDF8] h-8 px-2 sm:px-3"
+                        >
+                          <ThumbsUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" strokeWidth={1.5} />
+                          Helpful
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-[#64748B] hover:text-[#EF4444] h-8 px-2 sm:px-3"
+                        >
+                          <ThumbsDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" strokeWidth={1.5} />
+                          Not helpful
+                        </Button>
                       </div>
                     )}
                   </Card>
 
                   {message.type === "user" && (
                     <div className="flex items-center justify-end gap-2 mt-2">
-                      <span className="text-[#CBD5E1] text-xs blueprint-label">
+                      <span className="text-[#CBD5E1] text-[10px] sm:text-xs blueprint-label">
                         {message.timestamp}
                       </span>
-                      <CheckCircle
-                        className="w-4 h-4 text-[#38BDF8]"
-                        strokeWidth={1.5}
-                      />
+                      <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#38BDF8]" strokeWidth={1.5} />
                     </div>
                   )}
                 </div>
@@ -642,26 +644,31 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
 
             {sending && (
               <div className="flex justify-start">
-                <div className="w-full">
+                <div className="w-full max-w-[90%] sm:max-w-3xl">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
-                      <Sparkles className="w-4 h-4 text-white animate-pulse" strokeWidth={1.5} />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
+                      <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-pulse" strokeWidth={1.5} />
                     </div>
-                    <span className="text-[#64748B] text-sm blueprint-label">
+                    <span className="text-[#64748B] text-xs sm:text-sm blueprint-label">
                       {statusMessage || "Infinium Assistant is thinking..."}
                     </span>
                   </div>
-                  <Card className="p-6 border-2 border-dashed border-[#38BDF8] bg-[#F8FAFC]">
+                  <Card className="p-4 sm:p-6 border-2 border-dashed border-[#38BDF8] bg-[#F8FAFC]">
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-3">
                         <Loader2 className="w-4 h-4 animate-spin text-[#1E3A8A]" />
-                        <span className="text-sm text-[#1E3A8A] font-medium animate-pulse">
-                          {statusMessage ? "Processing your intelligence..." : "Receiving intelligence from RAG engine..."}
+                        <span className="text-xs sm:text-sm text-[#1E3A8A] font-medium animate-pulse">
+                          {statusMessage
+                            ? "Processing your intelligence..."
+                            : "Receiving intelligence from RAG engine..."}
                         </span>
                       </div>
                       <div className="space-y-2">
-                        <div className="h-2 w-3/4 bg-[#E2E8F0] rounded-full animate-pulse"></div>
-                        <div className="h-2 w-1/2 bg-[#E2E8F0] rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="h-1.5 sm:h-2 w-3/4 bg-[#E2E8F0] rounded-full animate-pulse"></div>
+                        <div
+                          className="h-1.5 sm:h-2 w-1/2 bg-[#E2E8F0] rounded-full animate-pulse"
+                          style={{ animationDelay: "0.2s" }}
+                        ></div>
                       </div>
                     </div>
                   </Card>
@@ -671,17 +678,17 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
 
             {messages.length === 1 && !noRepos && (
               <div className="max-w-3xl">
-                <p className="text-[#64748B] text-sm mb-4 blueprint-label">
+                <p className="text-[#64748B] text-xs sm:text-sm mb-4 blueprint-label">
                   Try asking:
                 </p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {suggestedQueries.map((suggested, idx) => (
                     <Card
                       key={idx}
                       onClick={() => handleSuggestedQuery(suggested)}
-                      className="blueprint-card p-4 bg-white hover:border-[#38BDF8] cursor-pointer transition-colors"
+                      className="blueprint-card p-3 sm:p-4 bg-white hover:border-[#38BDF8] cursor-pointer transition-colors"
                     >
-                      <p className="text-[#0F172A] text-sm">{suggested}</p>
+                      <p className="text-[#0F172A] text-xs sm:text-sm">{suggested}</p>
                     </Card>
                   ))}
                 </div>
@@ -691,9 +698,9 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t-2 border-[#1E3A8A] bg-white p-6">
+          <div className="border-t-2 border-[#1E3A8A] bg-white p-4 sm:p-6">
             <div className="max-w-4xl mx-auto">
-              <div className="flex gap-4">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <Input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -709,12 +716,12 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                       : "Ask about architecture, code patterns, errors, or anything else…"
                   }
                   disabled={sending || noRepos}
-                  className="flex-1 border-2 border-[#CBD5E1] text-[#0F172A] placeholder:text-[#CBD5E1] focus:border-[#38BDF8]"
+                  className="flex-1 border-2 border-[#CBD5E1] text-[#0F172A] placeholder:text-[#CBD5E1] focus:border-[#38BDF8] text-sm sm:text-base"
                 />
                 <Button
                   onClick={handleSendQuery}
                   disabled={!query.trim() || sending || noRepos}
-                  className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8]"
+                  className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8] whitespace-nowrap"
                 >
                   {sending ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -724,7 +731,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                   Send
                 </Button>
               </div>
-              <p className="text-[#64748B] text-xs mt-3 flex items-center gap-1 blueprint-label">
+              <p className="text-[#64748B] text-[10px] sm:text-xs mt-3 flex items-center gap-1 blueprint-label">
                 <Clock className="w-3 h-3" strokeWidth={1.5} />
                 Powered by your indexed repos via Infinium's RAG engine.
               </p>

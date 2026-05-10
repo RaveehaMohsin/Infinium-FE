@@ -75,7 +75,7 @@ export async function apiRequest<T>(
   if (!res.ok || (json && json.success === false)) {
     const message = json?.message || `Request failed with status ${res.status}`;
     if (res.status === 401) {
-      clearToken();
+      // clearToken();
     }
     throw new ApiError(message, res.status, json);
   }

@@ -1,366 +1,443 @@
-import { useEffect, useState } from "react";
+"use client";
+
+import { useEffect, useState, useRef } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  FileText, 
-  Upload, 
-  Search, 
-  Maximize2, 
-  Download, 
-  ChevronLeft, 
-  ChevronRight,
+import {
+  FileText,
+  Upload,
   Loader2,
-  X
+  X,
+  Copy,
+  CheckCircle,
+  AlertCircle,
+  Sparkles,
+  Trash2,
+  Clock,
+  Eye,
+  History
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { useSearchParams } from "next/navigation";
-import { docsApi, Documentation } from "@/lib/api";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { pdfApi, type PdfAnalysis } from "@/lib/api";
 
 interface PdfViewerProps {
   navigateTo: (page: string) => void;
 }
 
 export function PdfViewer({ navigateTo }: PdfViewerProps) {
-  const searchParams = useSearchParams();
-  const docId = searchParams.get("docId");
-
   const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [doc, setDoc] = useState<Documentation | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<PdfAnalysis | null>(null);
+  const [history, setHistory] = useState<PdfAnalysis[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Inject html2pdf and mermaid scripts dynamically
+  // Fetch analysis history on load
   useEffect(() => {
-    // html2pdf
-    const s1 = document.createElement("script");
-    s1.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-    s1.async = true;
-    document.body.appendChild(s1);
-
-    // mermaid
-    const s2 = document.createElement("script");
-    s2.src = "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js";
-    s2.async = true;
-    s2.onload = () => {
-      // @ts-ignore
-      window.mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
-    };
-    document.body.appendChild(s2);
-
-    return () => {
-      document.body.removeChild(s1);
-      document.body.removeChild(s2);
-    };
+    fetchHistory();
   }, []);
 
-  // Custom code component for Mermaid
-  const MarkdownComponents = {
-    code({ node, inline, className, children, ...props }: any) {
-      const match = /language-(\w+)/.exec(className || '');
-      if (!inline && match && match[1] === 'mermaid') {
-        return (
-          <div className="mermaid bg-white p-4 my-4 border-2 border-[#E2E8F0] rounded-sm flex justify-center">
-            {String(children).replace(/\n$/, '')}
-          </div>
-        );
-      }
-      return (
-        <code className={className} {...props}>
-          {children}
-        </code>
-      );
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const data = await pdfApi.getAnalysisHistory();
+      setHistory(data.analyses);
+    } catch (err) {
+      console.error('Failed to fetch history:', err);
+      setHistory([]);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
-  useEffect(() => {
-    // Re-run mermaid on doc change
-    if (doc) {
-      setTimeout(() => {
-        // @ts-ignore
-        if (window.mermaid) window.mermaid.contentLoaded();
-      }, 500);
-    }
-  }, [doc]);
-
-  const downloadPdf = () => {
-    if (!doc) return;
-    const element = document.getElementById("pdf-content");
-    if (!element) return;
-
-    const opt = {
-      margin: [15, 15],
-      filename: `${doc.repo_name}-analysis.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-    };
-
-    // @ts-ignore
-    window.html2pdf().set(opt).from(element).save();
-  };
-
-  useEffect(() => {
-    if (docId) {
-      async function loadDoc() {
-        setLoading(true);
-        try {
-          // In a real app, we'd fetch the specific doc and generate a PDF or preview
-          // For now, we'll simulate fetching the generated doc
-          const { docs } = await docsApi.listDocumentation(""); 
-          const found = docs.find(d => d.id === docId);
-          if (found) {
-            setDoc(found);
-            // Simulate a "generated" PDF view
-            setPreviewUrl("https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf");
-          }
-        } catch (err) {
-          console.error("Failed to load document", err);
-        } finally {
-          setLoading(false);
-        }
-      }
-      loadDoc();
-    }
-  }, [docId]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile && selectedFile.type === "application/pdf") {
-      setLoading(true);
       setFile(selectedFile);
-      const url = URL.createObjectURL(selectedFile);
-      setPreviewUrl(url);
-      
-      // Simulate analysis loading
-      setTimeout(() => setLoading(false), 1500);
+      setError(null);
+      setAnalysis(null);
+    } else {
+      setError("Please select a valid PDF file");
     }
   };
 
-  const removeFile = () => {
+  const handleAnalyze = async () => {
+    if (!file) return;
+
+    setAnalyzing(true);
+    setError(null);
+
+    try {
+      const result = await pdfApi.analyzePdf(file);
+      setAnalysis(result);
+      setFile(null);
+      fetchHistory(); // Refresh history
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleDeleteAnalysis = async (id: string) => {
+    if (!confirm("Delete this analysis?")) return;
+
+    try {
+      await pdfApi.deleteAnalysis(id);
+      fetchHistory();
+      if (analysis?.id === id) {
+        setAnalysis(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete:', err);
+    }
+  };
+
+  const handleViewAnalysis = (analysisItem: PdfAnalysis) => {
+    setAnalysis(analysisItem);
+    setShowHistory(false);
     setFile(null);
-    setPreviewUrl(null);
+  };
+
+  const handleCopyAnalysis = () => {
+    if (analysis?.fullAnalysis) {
+      navigator.clipboard.writeText(analysis.fullAnalysis);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
+  // Helper function to format analysis text
+  const formatAnalysisText = (text: string) => {
+    if (!text) return "";
+
+    // Replace literal \n with actual newlines
+    let formatted = text.replace(/\\n/g, '\n');
+
+    // Ensure proper markdown headers have spacing
+    formatted = formatted.replace(/([^\n])(## )/g, '$1\n\n$2');
+    formatted = formatted.replace(/([^\n])(### )/g, '$1\n\n$2');
+
+    // Ensure bullet points have proper line breaks
+    formatted = formatted.replace(/([^\n])(\* )/g, '$1\n$2');
+    formatted = formatted.replace(/([^\n])(- )/g, '$1\n$2');
+
+    // Ensure numbered lists have proper line breaks
+    formatted = formatted.replace(/([^\n])(\d+\. )/g, '$1\n$2');
+
+    return formatted;
   };
 
   return (
-    <div className="flex h-screen bg-white blueprint-bg">
+    <div className="flex h-screen bg-white blueprint-bg overflow-hidden">
       <Sidebar currentPage="pdf" navigateTo={navigateTo} />
-      
-      <main className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white border-b-2 border-[#1E3A8A] px-8 py-6">
-          <div className="flex items-center justify-between">
+
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <header className="bg-white border-b-2 border-[#1E3A8A] px-4 sm:px-8 py-4 sm:py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-1 h-8 bg-[#38BDF8]"></div>
+              <div className="w-1 h-6 sm:h-8 bg-[#38BDF8]"></div>
               <div>
-                <h1 className="text-3xl font-bold text-[#0F172A]">{doc?.title || "PDF Analysis Engine"}</h1>
-                <p className="text-[#64748B] mt-1">{doc ? `Generated on ${new Date(doc.created_at).toLocaleDateString()}` : "Extract architectural insights from documentation"}</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-[#0F172A]">PDF Intelligence Engine</h1>
+                <p className="text-sm text-[#64748B] mt-1">AI-powered document analysis and insights</p>
               </div>
             </div>
-            {file && (
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={removeFile} className="border-2 border-red-200 text-red-600 hover:bg-red-50">
-                  <X className="w-4 h-4 mr-2" />
-                  Close Document
-                </Button>
-                <Button onClick={downloadPdf} className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Analysis
-                </Button>
-              </div>
-            )}
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowHistory(!showHistory)}
+                variant="outline"
+                className="border-2 border-[#CBD5E1] text-[#0F172A] hover:border-[#1E3A8A]"
+              >
+                {showHistory ? <Sparkles className="w-4 h-4 mr-2" /> : <History className="w-4 h-4 mr-2" />}
+                {showHistory ? "New Analysis" : "History"}
+              </Button>
+            </div>
           </div>
         </header>
 
-        <div className="flex-1 flex overflow-hidden">
-          {/* Left Panel: Viewer */}
-          <div className="flex-1 bg-[#F8FAFC] border-r-2 border-[#E2E8F0] overflow-hidden flex flex-col">
-            {!previewUrl ? (
-              <div className="flex-1 flex items-center justify-center p-12">
-                <div className="max-w-md w-full text-center">
-                  <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Upload className="w-10 h-10 text-[#1E3A8A]" />
-                  </div>
-                  <h3 className="text-xl font-bold text-[#0F172A] mb-2">Upload Technical Document</h3>
-                  <p className="text-[#64748B] mb-8">Drop your architecture diagrams, API specs, or PRDs here for AI analysis.</p>
-                  
-                  <label className="cursor-pointer">
-                    <div className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white px-8 py-3 rounded-md font-semibold transition-colors inline-flex items-center gap-2">
-                      <Upload className="w-4 h-4" />
-                      Select PDF File
-                    </div>
-                    <input type="file" className="hidden" accept=".pdf" onChange={handleFileChange} />
-                  </label>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="bg-white border-b-2 border-[#E2E8F0] p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <Button size="icon" variant="ghost" className="text-[#64748B]">
-                      <ChevronLeft className="w-5 h-5" />
-                    </Button>
-                    <span className="text-sm font-semibold text-[#0F172A]">Page 1 of 12</span>
-                    <Button size="icon" variant="ghost" className="text-[#64748B]">
-                      <ChevronRight className="w-5 h-5" />
-                    </Button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button size="icon" variant="ghost" className="text-[#64748B]">
-                      <Search className="w-5 h-5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="text-[#64748B]">
-                      <Maximize2 className="w-5 h-5" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-auto p-8 flex justify-center bg-white">
-                  <div className="w-full max-w-4xl min-h-full" id="pdf-content">
-                    {doc ? (
-                      <div className="prose prose-slate max-w-none prose-pre:bg-[#F8FAFC] prose-pre:border-2 prose-pre:border-[#E2E8F0] prose-pre:text-[#0F172A] blueprint-markdown markdown-pdf-export">
-                        <style>{`
-                          .markdown-pdf-export table {
-                            width: 100%;
-                            border-collapse: collapse;
-                            margin: 1.5rem 0;
-                            border: 2px solid #E2E8F0;
-                          }
-                          .markdown-pdf-export th {
-                            background-color: #F8FAFC;
-                            border-bottom: 2px solid #E2E8F0;
-                            padding: 0.75rem;
-                            text-align: left;
-                            font-weight: bold;
-                            color: #1E3A8A;
-                          }
-                          .markdown-pdf-export td {
-                            border-bottom: 1px solid #E2E8F0;
-                            padding: 0.75rem;
-                            color: #0F172A;
-                          }
-                          .markdown-pdf-export tr:nth-child(even) {
-                            background-color: #FDFDFD;
-                          }
-                          .markdown-pdf-export blockquote {
-                            border-left: 4px solid #38BDF8;
-                            background: #F0F9FF;
-                            padding: 1rem;
-                            margin: 1.5rem 0;
-                          }
-                          .markdown-pdf-export pre {
-                            background-color: #0F172A !important;
-                            color: #F8FAFC !important;
-                            padding: 1.5rem !important;
-                            border-radius: 4px !important;
-                            overflow-x: auto !important;
-                            border: 1px solid #1E293B !important;
-                            margin: 2rem 0 !important;
-                            white-space: pre-wrap !important;
-                            word-wrap: break-word !important;
-                          }
-                          .markdown-pdf-export code {
-                            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
-                            font-size: 0.85rem !important;
-                            line-height: 1.7 !important;
-                          }
-                          .markdown-pdf-export p {
-                            margin-bottom: 1.25rem !important;
-                            line-height: 1.6 !important;
-                          }
-                          @media print {
-                            .blueprint-markdown { color: black !important; }
-                            table { page-break-inside: avoid; }
-                            pre { background-color: #f8f8f8 !important; color: black !important; border: 1px solid #ddd !important; }
-                          }
-                        `}</style>
-                        <ReactMarkdown 
-                          remarkPlugins={[remarkGfm]}
-                          components={MarkdownComponents}
-                        >
-                          {doc.markdown || doc.content || ""}
-                        </ReactMarkdown>
-                      </div>
-                    ) : (
-                      <iframe 
-                        src={`${previewUrl}#toolbar=0`} 
-                        className="w-full h-full border-none shadow-2xl"
-                        title="PDF Preview"
-                      />
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+          {showHistory ? (
+            // History View
+            <div className="max-w-4xl mx-auto space-y-6">
+              <h2 className="text-xl font-semibold text-[#0F172A] flex items-center gap-2">
+                <Clock className="w-5 h-5 text-[#38BDF8]" />
+                Your Analysis History
+              </h2>
 
-          {/* Right Panel: AI Insights */}
-          <aside className="w-96 bg-white overflow-y-auto">
-            <div className="p-6 border-b-2 border-[#E2E8F0]">
-              <h3 className="text-lg font-bold text-[#0F172A] flex items-center gap-2">
-                <FileText className="w-5 h-5 text-[#38BDF8]" />
-                AI Contextual Analysis
-              </h3>
-            </div>
-
-            <div className="p-6 space-y-6">
-              {loading ? (
-                <div className="py-20 text-center">
-                  <Loader2 className="w-10 h-10 animate-spin text-[#1E3A8A] mx-auto mb-4" />
-                  <p className="text-[#64748B] font-medium">Extracting knowledge...</p>
+              {loadingHistory ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="w-8 h-8 animate-spin text-[#1E3A8A]" />
                 </div>
-              ) : !file ? (
-                <div className="text-center py-20">
-                  <p className="text-[#94A3B8] italic text-sm px-8">
-                    Upload a document to see AI-extracted architectural insights and requirements.
-                  </p>
-                </div>
+              ) : history.length === 0 ? (
+                <Card className="blueprint-card p-12 text-center bg-white">
+                  <FileText className="w-12 h-12 text-[#CBD5E1] mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-[#0F172A]">No analyses yet</h3>
+                  <p className="text-[#64748B] mt-2">Upload a PDF to get AI-powered insights</p>
+                  <Button
+                    onClick={() => setShowHistory(false)}
+                    className="mt-6 bg-[#1E3A8A] hover:bg-[#38BDF8]"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Analyze Document
+                  </Button>
+                </Card>
               ) : (
-                <>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-blue-50 border-2 border-blue-100 rounded-sm">
-                      <h4 className="text-sm font-bold text-[#1E3A8A] mb-1 uppercase tracking-wider">Document Summary</h4>
-                      <p className="text-sm text-[#0F172A]">{doc?.summary || "This document outlines the architectural strategy and technical requirements for the project codebase."}</p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-bold text-[#64748B] uppercase tracking-wider blueprint-label">Key Entities Found</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {(doc?.sources?.slice(0, 6).map(s => s.type) || ["OAuth2", "JWT", "Bcrypt", "RBAC", "Middleware", "Supabase"]).map((tag) => (
-                          <span key={tag} className="px-2 py-1 bg-gray-100 text-gray-600 text-[10px] font-bold rounded-sm border border-gray-200">
-                            {tag}
-                          </span>
-                        ))}
+                <div className="space-y-3">
+                  {history.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleViewAnalysis(item)}
+                      className="bg-white border-2 border-[#E2E8F0] rounded-lg p-4 hover:border-[#38BDF8] transition-all cursor-pointer group"
+                    >
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-10 h-10 bg-[#F1F5FF] rounded-lg flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-5 h-5 text-[#1E3A8A]" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-[#0F172A] truncate">{item.file_name}</h3>
+                            <div className="flex flex-wrap items-center gap-3 mt-1">
+                              <span className="text-xs text-[#64748B]">{formatFileSize(item.file_size)}</span>
+                              <span className="text-xs text-[#64748B]">{formatDate(item.created_at)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-[#1E3A8A]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewAnalysis(item);
+                            }}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteAnalysis(item.id);
+                            }}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-
-                    <div className="space-y-3 pt-4 border-t-2 border-[#F1F5F9]">
-                      <h4 className="text-sm font-bold text-[#64748B] uppercase tracking-wider blueprint-label">System Requirements</h4>
-                      <div className="space-y-2">
-                        <div className="flex gap-3 text-sm">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#38BDF8] mt-1.5 shrink-0"></div>
-                          <p className="text-[#0F172A]">Implement HS256 algorithm for JWT signing.</p>
-                        </div>
-                        <div className="flex gap-3 text-sm">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#38BDF8] mt-1.5 shrink-0"></div>
-                          <p className="text-[#0F172A]">Enforce password complexity (min 8 chars, 1 special).</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="pt-6">
-                    <Button className="w-full bg-[#1E3A8A] hover:bg-[#38BDF8] text-white py-6">
-                      Sync with Knowledge Base
-                    </Button>
-                  </div>
-                </>
+                  ))}
+                </div>
               )}
             </div>
-          </aside>
+          ) : analysis ? (
+            // Analysis Result View
+            <div className="max-w-5xl mx-auto space-y-6">
+              {/* Analysis Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b-2 border-[#E2E8F0]">
+                <div>
+                  <h2 className="text-xl font-bold text-[#0F172A]">{analysis.file_name}</h2>
+                  <p className="text-sm text-[#64748B]">Analyzed on {formatDate(analysis.created_at)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleCopyAnalysis}
+                    variant="outline"
+                    className="border-2 border-[#CBD5E1]"
+                  >
+                    {copied ? <CheckCircle className="w-4 h-4 mr-2 text-green-500" /> : <Copy className="w-4 h-4 mr-2" />}
+                    {copied ? "Copied!" : "Copy"}
+                  </Button>
+                  <Button onClick={() => setAnalysis(null)} variant="outline" className="border-2 border-[#CBD5E1]">
+                    New Analysis
+                  </Button>
+                </div>
+              </div>
+
+              {/* Summary Card */}
+              <Card className="blueprint-card p-6 bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-200">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="w-6 h-6 text-[#38BDF8] flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-[#0F172A] mb-2">AI Executive Summary</h3>
+                    <p className="text-[#0F172A] leading-relaxed">{analysis.summary}</p>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {analysis.keyEntities.length > 0 && (
+                  <Card className="blueprint-card p-4 bg-white">
+                    <h3 className="text-sm font-semibold text-[#64748B] uppercase mb-3">Key Entities</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.keyEntities.map((entity: string, idx: number) => (
+                        <span key={idx} className="px-2 py-1 bg-[#F1F5FF] text-[#1E3A8A] text-xs font-medium rounded-md">
+                          {entity}
+                        </span>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {analysis.technologies.length > 0 && (
+                  <Card className="blueprint-card p-4 bg-white">
+                    <h3 className="text-sm font-semibold text-[#64748B] uppercase mb-3">Technologies Detected</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {analysis.technologies.map((tech: string, idx: number) => (
+                        <span key={idx} className="px-2 py-1 bg-[#FEF3C7] text-[#D97706] text-xs font-medium rounded-md">
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+
+              {/* Requirements & Recommendations */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {analysis.requirements.length > 0 && (
+                  <Card className="blueprint-card p-5 bg-white">
+                    <h3 className="font-semibold text-[#0F172A] mb-4 flex items-center gap-2">
+                      <div className="w-1 h-5 bg-[#EF4444]"></div>
+                      Requirements
+                    </h3>
+                    <ul className="space-y-2">
+                      {analysis.requirements.map((req: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-[#64748B]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444] mt-2 flex-shrink-0"></span>
+                          <span>{req}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                )}
+
+                {analysis.recommendations.length > 0 && (
+                  <Card className="blueprint-card p-5 bg-white">
+                    <h3 className="font-semibold text-[#0F172A] mb-4 flex items-center gap-2">
+                      <div className="w-1 h-5 bg-[#10B981]"></div>
+                      Recommendations
+                    </h3>
+                    <ul className="space-y-2">
+                      {analysis.recommendations.map((rec: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2 text-sm text-[#64748B]">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] mt-2 flex-shrink-0"></span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </Card>
+                )}
+              </div>
+
+              {/* Full Analysis */}
+              <Card className="blueprint-card p-6 bg-white">
+                <h3 className="font-semibold text-[#0F172A] mb-4 flex items-center gap-2">
+                  <div className="w-1 h-5 bg-[#38BDF8]"></div>
+                  Detailed Analysis
+                </h3>
+                <div className="prose prose-slate max-w-none prose-pre:bg-[#0F172A] prose-pre:text-white">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {formatAnalysisText(analysis.fullAnalysis)}
+                  </ReactMarkdown>
+                </div>
+              </Card>
+            </div>
+          ) : (
+            // Upload View
+            <div className="max-w-md mx-auto">
+              <Card className="blueprint-card p-8 bg-white text-center">
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-cyan-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Upload className="w-10 h-10 text-[#1E3A8A]" />
+                </div>
+                <h3 className="text-xl font-bold text-[#0F172A] mb-2">Upload Technical Document</h3>
+                <p className="text-[#64748B] mb-8">Upload PDFs of architecture docs, API specs, PRDs, or technical papers for AI analysis</p>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+
+                {!file ? (
+                  <Button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white px-8 py-6 text-lg"
+                  >
+                    <Upload className="w-5 h-5 mr-2" />
+                    Select PDF File
+                  </Button>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-[#F8FAFC] rounded-lg border-2 border-[#E2E8F0]">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-8 h-8 text-[#1E3A8A]" />
+                        <div className="text-left">
+                          <p className="font-medium text-[#0F172A] truncate max-w-[200px]">{file.name}</p>
+                          <p className="text-xs text-[#64748B]">{formatFileSize(file.size)}</p>
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setFile(null)}
+                        className="text-red-500"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+
+                    {error && (
+                      <div className="flex items-center gap-2 p-3 bg-red-50 border-2 border-red-200 rounded-lg text-red-700 text-sm">
+                        <AlertCircle className="w-4 h-4" />
+                        {error}
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleAnalyze}
+                      disabled={analyzing}
+                      className="w-full bg-[#1E3A8A] hover:bg-[#38BDF8] text-white py-6"
+                    >
+                      {analyzing ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Analyzing Document...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-5 h-5 mr-2" />
+                          Analyze with AI
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
         </div>
       </main>
     </div>

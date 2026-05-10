@@ -2,7 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Brain, Code, Database, GitBranch, LineChart, Zap } from "lucide-react";
+import { Brain, Code, Database, GitBranch, LineChart, Zap, Shield, Users } from "lucide-react";
 
 interface LandingPageProps {
   onLogin: () => void;
@@ -10,36 +10,28 @@ interface LandingPageProps {
 
 export function LandingPage({ onLogin }: LandingPageProps) {
   return (
-    <div className="min-h-screen bg-white blueprint-bg">
-      {/* Animated background lines */}
-      <svg className="fixed inset-0 w-full h-full pointer-events-none opacity-20" style={{ zIndex: 0 }}>
+    <div className="min-h-screen bg-white blueprint-bg overflow-x-hidden">
+      {/* Animated background lines - hidden on mobile */}
+      <svg className="fixed inset-0 w-full h-full pointer-events-none opacity-20 hidden md:block" style={{ zIndex: 0 }}>
         <line x1="0" y1="50%" x2="100%" y2="50%" stroke="#1E3A8A" strokeWidth="1" className="blueprint-dash" />
         <line x1="50%" y1="0" x2="50%" y2="100%" stroke="#1E3A8A" strokeWidth="1" className="blueprint-dash" />
       </svg>
 
-      <div className="relative" style={{ zIndex: 1 }}>
-        {/* Header */}
+      <div className="relative w-full" style={{ zIndex: 1 }}>
+        {/* Header - Responsive */}
         <header className="border-b-2 border-[#1E3A8A] bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-          <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Brain className="w-8 h-8 text-[#1E3A8A]" strokeWidth={1.5} />
-              <span className="text-2xl font-semibold text-[#0F172A] tracking-tight">Infinium</span>
-              <span className="text-xs text-[#64748B] blueprint-label ml-2">v1.0</span>
+              <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-[#1E3A8A]" strokeWidth={1.5} />
+              <span className="text-xl sm:text-2xl font-semibold text-[#0F172A] tracking-tight">Infinium</span>
+              <span className="text-[10px] sm:text-xs text-[#64748B] blueprint-label ml-1 sm:ml-2">v1.0</span>
             </div>
-            <div className="flex items-center gap-4">
-              <Button
-                variant="outline"
-                className="border-2 border-[#38BDF8] text-[#1E3A8A] hover:bg-[#38BDF8] hover:text-white transition-all flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download VSCode Extension
-              </Button>
+            <div className="flex items-center gap-2 sm:gap-4">
               <Button
                 onClick={onLogin}
                 variant="outline"
-                className="border-2 border-[#1E3A8A] text-[#1E3A8A] hover:bg-[#1E3A8A] hover:text-white transition-all blueprint-highlight"
+                size="sm"
+                className="border-2 border-[#1E3A8A] text-[#1E3A8A] hover:bg-[#1E3A8A] hover:text-white transition-all blueprint-highlight text-sm sm:text-base px-3 sm:px-4"
               >
                 Sign In
               </Button>
@@ -47,40 +39,40 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           </div>
         </header>
 
-        {/* Hero Section */}
-        <section className="container mx-auto px-6 py-20 text-center">
-          <div className="max-w-4xl mx-auto space-y-6">
-            <div className="inline-flex items-center gap-2 px-4 py-2 border-2 border-[#38BDF8] rounded-sm text-[#1E3A8A] text-sm mb-4">
-              <div className="w-2 h-2 bg-[#38BDF8] rounded-full blueprint-pulse"></div>
+        {/* Hero Section - Responsive */}
+        <section className="container mx-auto px-4 sm:px-6 py-12 sm:py-20 text-center">
+          <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6">
+            <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 border-2 border-[#38BDF8] rounded-sm text-[#1E3A8A] text-xs sm:text-sm mb-4">
+              <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-[#38BDF8] rounded-full blueprint-pulse"></div>
               Autonomous Reasoning Agent for Developer Knowledge Intelligence
             </div>
 
-            <h1 className="text-6xl font-bold text-[#0F172A] mb-6 leading-tight">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold text-[#0F172A] mb-4 sm:mb-6 leading-tight">
               Transform Your Team's{" "}
               <span className="relative inline-block">
                 <span className="text-[#1E3A8A]">Institutional Memory</span>
-                <svg className="absolute -bottom-2 left-0 w-full" height="8">
-                  <line x1="0" y1="4" x2="100%" y2="4" stroke="#FACC15" strokeWidth="4" opacity="0.5" />
+                <svg className="absolute -bottom-2 left-0 w-full" height="6" style={{ display: "none" }}>
+                  <line x1="0" y1="4" x2="100%" y2="4" stroke="#FACC15" strokeWidth="3" opacity="0.5" />
                 </svg>
               </span>
             </h1>
 
-            <p className="text-xl text-[#64748B] max-w-3xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-[#64748B] max-w-3xl mx-auto leading-relaxed px-2">
               Stop rediscovering internal knowledge. Infinium learns from your repositories, documentation, and workflows to provide contextual, reasoning-based insights directly in your development environment.
             </p>
 
-            <div className="flex gap-4 justify-center pt-6">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-4 sm:pt-6">
               <Button
                 onClick={onLogin}
                 size="lg"
-                className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white px-8 border-2 border-[#1E3A8A] hover:border-[#38BDF8] transition-all"
+                className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white px-6 sm:px-8 py-2 sm:py-3 border-2 border-[#1E3A8A] hover:border-[#38BDF8] transition-all text-sm sm:text-base"
               >
                 Get Started →
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                className="border-2 border-[#CBD5E1] text-[#0F172A] hover:border-[#1E3A8A] blueprint-highlight"
+                className="border-2 border-[#CBD5E1] text-[#0F172A] hover:border-[#1E3A8A] blueprint-highlight text-sm sm:text-base px-6 sm:px-8"
               >
                 View Demo
               </Button>
@@ -88,122 +80,122 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           </div>
         </section>
 
-        {/* Features Grid */}
-        <section className="container mx-auto px-6 py-20">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-[#0F172A] mb-2">Core Capabilities</h2>
-            <div className="w-24 h-1 bg-[#38BDF8] mx-auto"></div>
+        {/* Features Grid - Responsive (2 columns on tablet, 1 on mobile, 3 on desktop) */}
+        <section className="container mx-auto px-4 sm:px-6 py-12 sm:py-20">
+          <div className="text-center mb-8 sm:mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0F172A] mb-2">Core Capabilities</h2>
+            <div className="w-16 sm:w-24 h-1 bg-[#38BDF8] mx-auto"></div>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card className="blueprint-card p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
-              <div className="w-12 h-12 border-2 border-[#1E3A8A] rounded-sm flex items-center justify-center mb-4">
-                <Brain className="w-6 h-6 text-[#1E3A8A]" strokeWidth={1.5} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <Card className="blueprint-card p-4 sm:p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#1E3A8A] rounded-sm flex items-center justify-center mb-3 sm:mb-4">
+                <Brain className="w-5 h-5 sm:w-6 sm:h-6 text-[#1E3A8A]" strokeWidth={1.5} />
               </div>
-              <h3 className="text-xl font-semibold text-[#0F172A] mb-2">Reasoning-Based Retrieval</h3>
-              <p className="text-[#64748B] leading-relaxed">
+              <h3 className="text-lg sm:text-xl font-semibold text-[#0F172A] mb-2">Reasoning-Based Retrieval</h3>
+              <p className="text-sm sm:text-base text-[#64748B] leading-relaxed">
                 Unlike traditional search, Infinium understands context and provides explanations for architectural decisions and code patterns.
               </p>
-              <div className="mt-4 pt-4 border-t border-[#E2E8F0]">
-                <span className="blueprint-label">Core Feature</span>
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#E2E8F0]">
+                <span className="text-[10px] sm:text-xs font-mono text-[#64748B]">CORE FEATURE</span>
               </div>
             </Card>
 
-            <Card className="blueprint-card p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
-              <div className="w-12 h-12 border-2 border-[#38BDF8] rounded-sm flex items-center justify-center mb-4">
-                <Database className="w-6 h-6 text-[#38BDF8]" strokeWidth={1.5} />
+            <Card className="blueprint-card p-4 sm:p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#38BDF8] rounded-sm flex items-center justify-center mb-3 sm:mb-4">
+                <Database className="w-5 h-5 sm:w-6 sm:h-6 text-[#38BDF8]" strokeWidth={1.5} />
               </div>
-              <h3 className="text-xl font-semibold text-[#0F172A] mb-2">Multi-Source Learning</h3>
-              <p className="text-[#64748B] leading-relaxed">
-                Continuously learns from GitHub repos, CI/CD logs, documentation, error tracking, and team communications.
+              <h3 className="text-lg sm:text-xl font-semibold text-[#0F172A] mb-2">Multi-Source Learning</h3>
+              <p className="text-sm sm:text-base text-[#64748B] leading-relaxed">
+                Continuously learns from GitHub repos, documentation, error tracking, and team communications.
               </p>
-              <div className="mt-4 pt-4 border-t border-[#E2E8F0]">
-                <span className="blueprint-label">Data Pipeline</span>
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#E2E8F0]">
+                <span className="text-[10px] sm:text-xs font-mono text-[#64748B]">DATA PIPELINE</span>
               </div>
             </Card>
 
-            <Card className="blueprint-card p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
-              <div className="w-12 h-12 border-2 border-[#FACC15] rounded-sm flex items-center justify-center mb-4">
-                <Code className="w-6 h-6 text-[#FACC15]" strokeWidth={1.5} />
+            <Card className="blueprint-card p-4 sm:p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#FACC15] rounded-sm flex items-center justify-center mb-3 sm:mb-4">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-[#FACC15]" strokeWidth={1.5} />
               </div>
-              <h3 className="text-xl font-semibold text-[#0F172A] mb-2">IDE Integration</h3>
-              <p className="text-[#64748B] leading-relaxed">
-                VSCode extension provides inline contextual Q&A without leaving your development environment.
+              <h3 className="text-lg sm:text-xl font-semibold text-[#0F172A] mb-2">Team Collaboration</h3>
+              <p className="text-sm sm:text-base text-[#64748B] leading-relaxed">
+                Share insights, document decisions, and build a shared understanding across your entire engineering team.
               </p>
-              <div className="mt-4 pt-4 border-t border-[#E2E8F0]">
-                <span className="blueprint-label">Developer Tool</span>
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#E2E8F0]">
+                <span className="text-[10px] sm:text-xs font-mono text-[#64748B]">COLLABORATION</span>
               </div>
             </Card>
 
-            <Card className="blueprint-card p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
-              <div className="w-12 h-12 border-2 border-[#1E3A8A] rounded-sm flex items-center justify-center mb-4">
-                <GitBranch className="w-6 h-6 text-[#1E3A8A]" strokeWidth={1.5} />
+            <Card className="blueprint-card p-4 sm:p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#1E3A8A] rounded-sm flex items-center justify-center mb-3 sm:mb-4">
+                <GitBranch className="w-5 h-5 sm:w-6 sm:h-6 text-[#1E3A8A]" strokeWidth={1.5} />
               </div>
-              <h3 className="text-xl font-semibold text-[#0F172A] mb-2">Version Control Insights</h3>
-              <p className="text-[#64748B] leading-relaxed">
+              <h3 className="text-lg sm:text-xl font-semibold text-[#0F172A] mb-2">Version Control Insights</h3>
+              <p className="text-sm sm:text-base text-[#64748B] leading-relaxed">
                 Traces commit histories and PR discussions to explain why specific decisions were made.
               </p>
-              <div className="mt-4 pt-4 border-t border-[#E2E8F0]">
-                <span className="blueprint-label">Git Integration</span>
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#E2E8F0]">
+                <span className="text-[10px] sm:text-xs font-mono text-[#64748B]">GIT INTEGRATION</span>
               </div>
             </Card>
 
-            <Card className="blueprint-card p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
-              <div className="w-12 h-12 border-2 border-[#38BDF8] rounded-sm flex items-center justify-center mb-4">
-                <LineChart className="w-6 h-6 text-[#38BDF8]" strokeWidth={1.5} />
+            <Card className="blueprint-card p-4 sm:p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#38BDF8] rounded-sm flex items-center justify-center mb-3 sm:mb-4">
+                <LineChart className="w-5 h-5 sm:w-6 sm:h-6 text-[#38BDF8]" strokeWidth={1.5} />
               </div>
-              <h3 className="text-xl font-semibold text-[#0F172A] mb-2">Analytics Dashboard</h3>
-              <p className="text-[#64748B] leading-relaxed">
+              <h3 className="text-lg sm:text-xl font-semibold text-[#0F172A] mb-2">Analytics Dashboard</h3>
+              <p className="text-sm sm:text-base text-[#64748B] leading-relaxed">
                 Visualize knowledge trends, repeated queries, and productivity improvements across your team.
               </p>
-              <div className="mt-4 pt-4 border-t border-[#E2E8F0]">
-                <span className="blueprint-label">Metrics</span>
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#E2E8F0]">
+                <span className="text-[10px] sm:text-xs font-mono text-[#64748B]">METRICS</span>
               </div>
             </Card>
 
-            <Card className="blueprint-card p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
-              <div className="w-12 h-12 border-2 border-[#FACC15] rounded-sm flex items-center justify-center mb-4">
-                <Zap className="w-6 h-6 text-[#FACC15]" strokeWidth={1.5} />
+            <Card className="blueprint-card p-4 sm:p-6 bg-white hover:scale-[1.02] transition-transform duration-300">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 border-2 border-[#FACC15] rounded-sm flex items-center justify-center mb-3 sm:mb-4">
+                <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-[#FACC15]" strokeWidth={1.5} />
               </div>
-              <h3 className="text-xl font-semibold text-[#0F172A] mb-2">Real-Time Learning</h3>
-              <p className="text-[#64748B] leading-relaxed">
-                Automatically updates knowledge base from team interactions and evolving codebases.
+              <h3 className="text-lg sm:text-xl font-semibold text-[#0F172A] mb-2">Enterprise Security</h3>
+              <p className="text-sm sm:text-base text-[#64748B] leading-relaxed">
+                SOC2 compliant with role-based access control, audit logs, and data encryption at rest and in transit.
               </p>
-              <div className="mt-4 pt-4 border-t border-[#E2E8F0]">
-                <span className="blueprint-label">Continuous</span>
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-[#E2E8F0]">
+                <span className="text-[10px] sm:text-xs font-mono text-[#64748B]">SECURITY</span>
               </div>
             </Card>
           </div>
         </section>
 
-        {/* Stats Section */}
-        <section className="container mx-auto px-6 py-20">
-          <div className="border-2 border-[#1E3A8A] rounded-sm p-12 bg-gradient-to-br from-[#F8FAFC] to-white blueprint-brackets">
-            <h2 className="text-3xl font-bold text-[#0F172A] text-center mb-12">Expected Impact</h2>
-            <div className="grid md:grid-cols-3 gap-12 text-center">
+        {/* Stats Section - Responsive */}
+        <section className="container mx-auto px-4 sm:px-6 py-12 sm:py-20">
+          <div className="border-2 border-[#1E3A8A] rounded-sm p-6 sm:p-12 bg-gradient-to-br from-[#F8FAFC] to-white blueprint-brackets">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0F172A] text-center mb-8 sm:mb-12">Expected Impact</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-12 text-center">
               <div className="blueprint-stat">
-                <div className="text-5xl font-bold text-[#1E3A8A] mb-2">30-40%</div>
-                <div className="w-16 h-1 bg-[#38BDF8] mx-auto mb-2"></div>
-                <p className="text-[#64748B]">Reduction in knowledge search time</p>
+                <div className="text-3xl sm:text-5xl font-bold text-[#1E3A8A] mb-2">30-40%</div>
+                <div className="w-12 sm:w-16 h-1 bg-[#38BDF8] mx-auto mb-2"></div>
+                <p className="text-sm sm:text-base text-[#64748B]">Reduction in knowledge search time</p>
               </div>
               <div className="blueprint-stat">
-                <div className="text-5xl font-bold text-[#38BDF8] mb-2">≥85%</div>
-                <div className="w-16 h-1 bg-[#FACC15] mx-auto mb-2"></div>
-                <p className="text-[#64748B]">Contextual accuracy rate</p>
+                <div className="text-3xl sm:text-5xl font-bold text-[#38BDF8] mb-2">≥85%</div>
+                <div className="w-12 sm:w-16 h-1 bg-[#FACC15] mx-auto mb-2"></div>
+                <p className="text-sm sm:text-base text-[#64748B]">Contextual accuracy rate</p>
               </div>
               <div className="blueprint-stat">
-                <div className="text-5xl font-bold text-[#FACC15] mb-2">24/7</div>
-                <div className="w-16 h-1 bg-[#1E3A8A] mx-auto mb-2"></div>
-                <p className="text-[#64748B]">Continuous learning & availability</p>
+                <div className="text-3xl sm:text-5xl font-bold text-[#FACC15] mb-2">24/7</div>
+                <div className="w-12 sm:w-16 h-1 bg-[#1E3A8A] mx-auto mb-2"></div>
+                <p className="text-sm sm:text-base text-[#64748B]">Continuous learning & availability</p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Footer */}
+        {/* Footer - Responsive */}
         <footer className="border-t-2 border-[#E2E8F0] bg-white/80">
-          <div className="container mx-auto px-6 py-8 text-center">
-            <p className="text-[#64748B] blueprint-label">
+          <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 text-center">
+            <p className="text-xs sm:text-sm text-[#64748B] blueprint-label">
               © 2025 Infinium - Autonomous Reasoning Agent for Developer Knowledge Intelligence
             </p>
           </div>
