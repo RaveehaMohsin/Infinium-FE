@@ -6,21 +6,19 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { FeedbackButtons } from "@/components/FeedbackButtons";
 import {
   Send,
   Sparkles,
   Clock,
   CheckCircle,
   Copy,
-  ThumbsUp,
-  ThumbsDown,
   GitCommit,
   FileText,
   AlertCircle,
   Loader2,
   Plus,
   Trash2,
-  Terminal,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -598,7 +596,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                     )}
 
                     {message.type === "assistant" && message.id !== "greeting" && (
-                      <div className="flex items-center gap-2 mt-4 pt-4 border-t-2 border-[#E2E8F0] text-xs text-[#64748B]">
+                      <div className="flex items-center gap-3 mt-4 pt-4 border-t-2 border-[#E2E8F0] text-xs text-[#64748B] flex-wrap">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -610,25 +608,19 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                           <Copy className="w-4 h-4 mr-2" strokeWidth={1.5} />
                           Copy
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-[#64748B] hover:text-[#38BDF8]"
-                        >
-                          <ThumbsUp className="w-4 h-4 mr-2" strokeWidth={1.5} />
-                          Helpful
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-[#64748B] hover:text-[#EF4444]"
-                        >
-                          <ThumbsDown
-                            className="w-4 h-4 mr-2"
-                            strokeWidth={1.5}
-                          />
-                          Not helpful
-                        </Button>
+                        <FeedbackButtons
+                          targetType="query"
+                          targetId={`${activeConversationId || ""}:${message.id}`}
+                          query={
+                            messages.find((m, i) =>
+                              i < messages.indexOf(message) && m.type === "user"
+                            )?.content || ""
+                          }
+                          answer={message.content}
+                          repoName={selectedRepo}
+                          metadata={{ sources: message.sources?.length || 0 }}
+                          compact
+                        />
                       </div>
                     )}
                   </Card>
