@@ -239,18 +239,57 @@ export function CodeRefactor({ navigateTo }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set([""]));
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const [copied, setCopied] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+  const [treeError, setTreeError] = useState<string | null>(null);
 
-  // Load indexed repos once
+  // Load indexed repos once. Use the SAME endpoint Repositories.tsx uses
+  // (listAllRepos) and filter for indexed ones — this matches what users
+  // see on the Repositories page.
   useEffect(() => {
     (async () => {
       try {
-        const data = await reposApi.listIndexedRepos();
-        setRepos(data.repositories);
-        if (data.repositories.length > 0) {
-          setActiveRepo(data.repositories[0].repo_name);
+        // Try listIndexedRepos first; if empty, fall back to listAllRepos
+        // and filter to is_indexed/has_branch_index.
+        const indexed = await reposApi.listIndexedRepos();
+        let list: IndexedRepository[] = indexed.repositories || [];
+        if (list.length === 0) {
+          try {
+            const all = await reposApi.listAllRepos();
+            // Map the listAllRepos shape to IndexedRepository-ish entries we use.
+            list = (all.repositories || [])
+              .filter((r) => r.is_indexed || r.has_branch_index)
+              .map((r) => ({
+                id: String(r.id),
+                repo_name: r.name,
+                repo_url: r.html_url || "",
+                full_name: r.full_name || r.name,
+                owner_github_id: 0,
+                status: (r.indexing_status || "completed") as IndexedRepository["status"],
+                is_private: !!r.private,
+                default_branch: r.default_branch || "main",
+                language: r.language || null,
+                stars: r.stars || 0,
+                chunks_count: r.chunks_count || 0,
+                files_count: 0,
+                commits_count: 0,
+                indexed_at: r.indexed_at || null,
+                error_message: null,
+                created_at: "",
+                updated_at: "",
+                indexed_branches: r.indexed_branches || [r.default_branch || "main"],
+                has_branch_index: r.has_branch_index,
+              }));
+          } catch {
+            /* ignore — we'll show whatever indexed had */
+          }
         }
-      } catch {
-        /* noop */
+        setRepos(list);
+        setReposError(list.length === 0 ? "No indexed repositories yet. Ingest one from the Repositories page first." : null);
+        if (list.length > 0) setActiveRepo(list[0].repo_name);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to load repositories";
+        setReposError(msg);
+        console.error("CodeRefactor: listIndexedRepos failed:", err);
       }
     })();
   }, []);
@@ -263,10 +302,24 @@ export function CodeRefactor({ navigateTo }: Props) {
     setSelectedSymbol("");
     setSelectedFile(null);
     setResult(null);
+    setTreeError(null);
     refactorApi
       .getRepoTree(activeRepo)
-      .then(setTree)
-      .catch(() => setTree(null))
+      .then((t) => {
+        setTree(t);
+        if (!t || t.total === 0) {
+          setTreeError(
+            "Tree is empty. The repo isn't cloned on disk in `repo_cache/` — " +
+            "this happens when you ingested via the public/tarball path. Re-ingest using the clone path to enable refactor."
+          );
+        }
+      })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : "Failed to load tree";
+        setTree(null);
+        setTreeError(msg);
+        console.error("CodeRefactor: getRepoTree failed:", err);
+      })
       .finally(() => setTreeLoading(false));
   }, [activeRepo]);
 
@@ -439,16 +492,24 @@ export function CodeRefactor({ navigateTo }: Props) {
           {/* LEFT: tree */}
           <div className="w-72 border-r-2 border-[#E2E8F0] bg-white overflow-y-auto">
             {!activeRepo ? (
-              <div className="p-6 text-sm text-[#64748B] text-center">
-                Select a repository above.
+              <div className="p-6 text-sm text-center">
+                {reposError ? (
+                  <div className="text-[#B45309] bg-[#FEF3C7] border border-[#FCD34D] rounded-sm p-3 text-left">
+                    {reposError}
+                  </div>
+                ) : (
+                  <span className="text-[#64748B]">Select a repository above.</span>
+                )}
               </div>
             ) : treeLoading ? (
               <div className="p-6 flex items-center justify-center text-[#64748B]">
                 <Loader2 className="w-5 h-5 animate-spin" />
               </div>
             ) : !tree || tree.total === 0 ? (
-              <div className="p-6 text-sm text-[#64748B] text-center">
-                No files visible. The repo may not be cloned in <code>repo_cache/</code> yet.
+              <div className="p-6 text-sm">
+                <div className="text-[#B45309] bg-[#FEF3C7] border border-[#FCD34D] rounded-sm p-3">
+                  {treeError || "No files visible. The repo isn't cloned in repo_cache/ yet."}
+                </div>
               </div>
             ) : (
               <div className="p-2">

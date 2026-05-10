@@ -15,7 +15,7 @@ import {
   BookOpen,
   FileText,
   LogOut,
-  Wand2
+  Wand2,
   Menu,
   X
 } from "lucide-react";
