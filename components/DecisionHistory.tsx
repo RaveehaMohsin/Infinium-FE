@@ -112,11 +112,12 @@ export function DecisionHistory({ navigateTo }: DecisionHistoryProps) {
         return matchesSearch && matchesCategory;
     });
 
-    const getImpactColor = (impact: Decision["impact"]) => {
+    const getImpactStyles = (impact: Decision["impact"]) => {
         switch (impact) {
-            case "high": return "red";
-            case "medium": return "yellow";
-            case "low": return "green";
+            case "high": return "bg-red-100 text-red-700";
+            case "medium": return "bg-yellow-100 text-yellow-700";
+            case "low": return "bg-green-100 text-green-700";
+            default: return "bg-gray-100 text-gray-700";
         }
     };
 
@@ -181,9 +182,7 @@ export function DecisionHistory({ navigateTo }: DecisionHistoryProps) {
 
                             {/* Decision Nodes */}
                             <div className="space-y-8">
-                                {filteredDecisions.map((decision, index) => {
-                                    const impactColor = getImpactColor(decision.impact);
-
+                                {filteredDecisions.map((decision) => {
                                     return (
                                         <div key={decision.id} className="relative pl-20">
                                             {/* Timeline Dot */}
@@ -201,7 +200,7 @@ export function DecisionHistory({ navigateTo }: DecisionHistoryProps) {
                                                                 <span className="text-sm font-mono text-gray-500 font-['Inter']">
                                                                     {decision.id}
                                                                 </span>
-                                                                <span className={`px-2 py-1 bg-${impactColor}-100 text-${impactColor}-700 text-xs rounded-full font-['Inter']`}>
+                                                                <span className={`px-2 py-1 ${getImpactStyles(decision.impact)} text-xs rounded-full font-['Inter']`}>
                                                                     {decision.impact} impact
                                                                 </span>
                                                             </div>

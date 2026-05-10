@@ -33,6 +33,7 @@ import {
   queryApi,
   reposApi,
 } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
 
 interface QueryInterfaceProps {
   navigateTo: (page: string) => void;
@@ -97,6 +98,9 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const searchParams = useSearchParams();
+  const repoFromUrl = searchParams.get("repo");
+
   const loadRepos = useCallback(async () => {
     setReposLoading(true);
     try {
@@ -106,8 +110,9 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
       );
       setRepos(completed);
       setSelectedRepo((current) => {
-        const selected = current && completed.some((r) => r.repo_name === current)
-          ? current
+        const target = repoFromUrl || current;
+        const selected = target && completed.some((r) => r.repo_name === target)
+          ? target
           : completed[0]?.repo_name || "";
         
         if (selected) {
@@ -133,7 +138,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
     } finally {
       setReposLoading(false);
     }
-  }, []);
+  }, [repoFromUrl]);
 
   const loadConversations = useCallback(async () => {
     try {

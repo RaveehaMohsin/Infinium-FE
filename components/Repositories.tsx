@@ -14,9 +14,16 @@ import {
   Activity,
   ArrowRight,
   Database,
-  Loader2
+  RefreshCw,
+  Search,
+  Globe,
+  User,
+  Loader2,
+  Plus,
+  ExternalLink
 } from "lucide-react";
-import { reposApi, queryApi, ApiError, GithubRepo, Conversation } from "@/lib/api";
+import { reposApi, queryApi, ApiError, GithubRepo, IndexedRepository, Conversation, ingestApi, branchIngestApi } from "@/lib/api";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface RepositoriesProps {
   navigateTo: (page: string) => void;
@@ -24,18 +31,23 @@ interface RepositoriesProps {
 
 export function Repositories({ navigateTo }: RepositoriesProps) {
   const [repos, setRepos] = useState<GithubRepo[]>([]);
+  const [indexedRepos, setIndexedRepos] = useState<IndexedRepository[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [repoSearch, setRepoSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("your-repos");
 
   useEffect(() => {
     async function loadData() {
       try {
-        const [reposData, convsData] = await Promise.all([
+        const [reposData, indexedData, convsData] = await Promise.all([
           reposApi.listAllRepos(),
+          reposApi.listIndexedRepos(),
           queryApi.listConversations()
         ]);
         setRepos(reposData.repositories);
+        setIndexedRepos(indexedData.repositories);
         setConversations(convsData.conversations.slice(0, 4));
       } catch (err) {
         setError("Failed to load dashboard data");
@@ -45,6 +57,83 @@ export function Repositories({ navigateTo }: RepositoriesProps) {
     }
     loadData();
   }, []);
+
+  // Poll status for any repo currently indexing
+  useEffect(() => {
+    const indexingRepos = repos.filter((r) => r.indexing_status === "indexing" || r.indexing_status === "pending");
+    const indexingPublic = indexedRepos.filter((r) => r.status === "indexing" || r.status === "pending");
+    
+    if (indexingRepos.length === 0 && indexingPublic.length === 0) return;
+
+    const interval = setInterval(async () => {
+      try {
+        // Poll for yourRepos
+        if (indexingRepos.length > 0) {
+          const updates = await Promise.all(
+            indexingRepos.map(async (r) => {
+              const [std, br] = await Promise.allSettled([
+                ingestApi.getIngestionStatus(r.name),
+                branchIngestApi.getBranchIngestionStatus(r.name)
+              ]);
+              const stdStatus = std.status === 'fulfilled' ? std.value : null;
+              const brStatus = br.status === 'fulfilled' ? br.value : null;
+              if (brStatus && brStatus.status !== 'failed' && brStatus.status !== null) {
+                return { name: r.name, status: brStatus, isBranch: true };
+              }
+              return stdStatus ? { name: r.name, status: stdStatus, isBranch: false } : null;
+            })
+          );
+          setRepos((prev) =>
+            prev.map((repo) => {
+              const update = updates.find((u) => u && u.name === repo.name);
+              if (!update) return repo;
+              const isCompleted = update.status.status === "completed";
+              return {
+                ...repo,
+                indexing_status: update.status.status,
+                is_indexed: isCompleted || (repo.is_indexed && update.status.status !== 'failed'),
+              };
+            })
+          );
+        }
+
+        // Poll for publicRepos
+        if (indexingPublic.length > 0) {
+          const updates = await Promise.all(
+            indexingPublic.map(async (r) => {
+              const [std, br] = await Promise.allSettled([
+                ingestApi.getIngestionStatus(r.repo_name),
+                branchIngestApi.getBranchIngestionStatus(r.repo_name)
+              ]);
+              const stdStatus = std.status === 'fulfilled' ? std.value : null;
+              const brStatus = br.status === 'fulfilled' ? br.value : null;
+              if (brStatus && brStatus.status !== 'failed' && brStatus.status !== null) {
+                return { name: r.repo_name, status: brStatus, isBranch: true };
+              }
+              return stdStatus ? { name: r.repo_name, status: stdStatus, isBranch: false } : null;
+            })
+          );
+          setIndexedRepos((prev) =>
+            prev.map((repo) => {
+              const update = updates.find((u) => u && u.name === repo.repo_name);
+              if (!update) return repo;
+              return {
+                ...repo,
+                status: (update.status.status as any) || repo.status,
+                indexed_at: update.status.indexed_at ?? repo.indexed_at,
+              };
+            })
+          );
+        }
+      } catch (err) {
+        console.warn("Polling error in Repositories:", err);
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [repos, indexedRepos]);
+
+  const yourRepos = repos;
+  const publicRepos = indexedRepos.filter(ir => !repos.some(r => r.full_name === ir.full_name));
 
   const recentQueries = conversations.map(c => ({
     id: c.id,
@@ -154,6 +243,234 @@ export function Repositories({ navigateTo }: RepositoriesProps) {
               </div>
             </Card>
           </div>
+
+          {/* Your Repositories Section */}
+          <Tabs defaultValue="your-repos" className="w-full" onValueChange={setActiveTab}>
+            <Card className="blueprint-card p-6 bg-white">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-1 h-6 bg-[#1E3A8A]"></div>
+                  <TabsList className="bg-[#F8FAFC] border-2 border-[#E2E8F0] p-1 h-auto">
+                    <TabsTrigger 
+                      value="your-repos" 
+                      className="px-4 py-2 text-sm font-bold data-[state=active]:bg-[#1E3A8A] data-[state=active]:text-white transition-all flex items-center gap-2"
+                    >
+                      <User className="w-4 h-4" />
+                      Your Repositories
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="public-repos"
+                      className="px-4 py-2 text-sm font-bold data-[state=active]:bg-[#1E3A8A] data-[state=active]:text-white transition-all flex items-center gap-2"
+                    >
+                      <Globe className="w-4 h-4" />
+                      Public Ingested Repos
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B]" />
+                    <input
+                      type="text"
+                      placeholder={`Filter ${activeTab === 'your-repos' ? 'your' : 'public'} repos...`}
+                      value={repoSearch}
+                      onChange={(e) => setRepoSearch(e.target.value)}
+                      className="pl-9 pr-4 py-2 border-2 border-[#E2E8F0] rounded-sm text-sm focus:border-[#1E3A8A] outline-none transition-colors w-64"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <TabsContent value="your-repos" className="mt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {yourRepos
+                    .filter(r => r.name.toLowerCase().includes(repoSearch.toLowerCase()))
+                    .map((repo) => (
+                    <div key={repo.id} className="p-4 border-2 border-[#E2E8F0] rounded-sm hover:border-[#1E3A8A] transition-all group relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-[#F8FAFC] rotate-45 translate-x-8 -translate-y-8 group-hover:bg-[#1E3A8A] transition-colors"></div>
+                      
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-[#F1F5FF] rounded-sm text-[#1E3A8A] group-hover:bg-[#1E3A8A] group-hover:text-white transition-colors">
+                            <Database className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h3 className="text-[#0F172A] font-bold text-sm truncate max-w-[150px]">{repo.name}</h3>
+                            <p className="text-[#64748B] text-[10px] uppercase tracking-wider">{repo.language || "Unknown Language"}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-4">
+                        <a 
+                          href={repo.html_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-[#38BDF8] hover:underline flex items-center gap-1 truncate"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          {repo.html_url}
+                        </a>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-[#F1F5F9]">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${
+                            repo.indexing_status === 'completed' ? "bg-green-500" : 
+                            (repo.indexing_status === 'indexing' || repo.indexing_status === 'pending') ? "bg-blue-400 animate-pulse" : 
+                            repo.indexing_status === 'failed' ? "bg-red-500" : "bg-gray-300"
+                          }`}></span>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-tighter">
+                              {repo.indexing_status === 'completed' ? "Ready" : 
+                               (repo.indexing_status === 'indexing' || repo.indexing_status === 'pending') ? "Indexing..." :
+                               repo.indexing_status === 'failed' ? "Failed" : "Not Ingested"}
+                            </span>
+                            {repo.indexing_status === 'completed' && repo.indexed_at && (
+                              <span className="text-[8px] text-[#94A3B8] font-medium leading-none">
+                                {new Date(repo.indexed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {repo.indexing_status === 'completed' ? (
+                          <Button
+                            size="sm"
+                            onClick={() => navigateTo(`query?repo=${repo.name}`)}
+                            className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white text-[10px] font-bold h-7 px-3 rounded-sm shadow-sm transition-all"
+                          >
+                            <MessageSquare className="w-3 h-3 mr-1" />
+                            Chat
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={repo.indexing_status === 'indexing' || repo.indexing_status === 'pending'}
+                            onClick={() => navigateTo("datasources")}
+                            className="text-[#1E3A8A] hover:text-[#38BDF8] text-[10px] font-bold h-7 px-3 blueprint-underline disabled:opacity-50"
+                          >
+                            { (repo.indexing_status === 'indexing' || repo.indexing_status === 'pending') ? (
+                              <RefreshCw className="w-3 h-3 animate-spin mr-1" />
+                            ) : null }
+                            { (repo.indexing_status === 'indexing' || repo.indexing_status === 'pending') ? "Processing" : "Ingest" }
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {yourRepos.length === 0 && !loading && (
+                    <div className="col-span-full py-12 text-center border-2 border-dashed border-[#E2E8F0] rounded-sm">
+                      <p className="text-[#64748B]">No personal repositories discovered.</p>
+                      <Button 
+                        onClick={() => navigateTo("datasources")}
+                        variant="link" 
+                        className="text-[#1E3A8A] mt-2"
+                      >
+                        Connect your GitHub account
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="public-repos" className="mt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {publicRepos
+                    .filter(r => r.repo_name.toLowerCase().includes(repoSearch.toLowerCase()))
+                    .map((repo) => (
+                    <div key={repo.id} className="p-4 border-2 border-[#E2E8F0] rounded-sm hover:border-[#1E3A8A] transition-all group relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-[#F8FAFC] rotate-45 translate-x-8 -translate-y-8 group-hover:bg-[#1E3A8A] transition-colors"></div>
+                      
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-[#F1F5FF] rounded-sm text-[#1E3A8A] group-hover:bg-[#1E3A8A] group-hover:text-white transition-colors">
+                            <Globe className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h3 className="text-[#0F172A] font-bold text-sm truncate max-w-[150px]">{repo.repo_name}</h3>
+                            <p className="text-[#64748B] text-[10px] uppercase tracking-wider">{repo.language || "Unknown Language"}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mb-4">
+                        <a 
+                          href={repo.repo_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-[#38BDF8] hover:underline flex items-center gap-1 truncate"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          {repo.repo_url}
+                        </a>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-[#F1F5F9]">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${
+                            repo.status === 'completed' ? "bg-green-500" : 
+                            (repo.status === 'indexing' || repo.status === 'pending') ? "bg-blue-400 animate-pulse" : 
+                            repo.status === 'failed' ? "bg-red-500" : "bg-gray-300"
+                          }`}></span>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-tighter">
+                              {repo.status === 'completed' ? "Ready" : 
+                               (repo.status === 'indexing' || repo.status === 'pending') ? "Indexing..." :
+                               repo.status === 'failed' ? "Failed" : "Ingesting"}
+                            </span>
+                            {repo.status === 'completed' && repo.indexed_at && (
+                              <span className="text-[8px] text-[#94A3B8] font-medium leading-none">
+                                {new Date(repo.indexed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {repo.status === 'completed' ? (
+                          <Button
+                            size="sm"
+                            onClick={() => navigateTo(`query?repo=${repo.repo_name}`)}
+                            className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white text-[10px] font-bold h-7 px-3 rounded-sm shadow-sm transition-all"
+                          >
+                            <MessageSquare className="w-3 h-3 mr-1" />
+                            Chat
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={repo.status === 'indexing' || repo.status === 'pending'}
+                            onClick={() => navigateTo("datasources")}
+                            className="text-[#1E3A8A] hover:text-[#38BDF8] text-[10px] font-bold h-7 px-3 blueprint-underline disabled:opacity-50"
+                          >
+                            {(repo.status === 'indexing' || repo.status === 'pending') && <RefreshCw className="w-3 h-3 animate-spin mr-1" />}
+                            {(repo.status === 'indexing' || repo.status === 'pending') ? "Processing" : "Manage"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {publicRepos.length === 0 && !loading && (
+                    <div className="col-span-full py-12 text-center border-2 border-dashed border-[#E2E8F0] rounded-sm">
+                      <p className="text-[#64748B]">No public ingested repositories found.</p>
+                      <Button 
+                        onClick={() => navigateTo("datasources")}
+                        variant="link" 
+                        className="text-[#1E3A8A] mt-2"
+                      >
+                        Ingest a public repository
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </Card>
+          </Tabs>
 
           {/* Two Column Layout */}
           <div className="grid grid-cols-2 gap-6">

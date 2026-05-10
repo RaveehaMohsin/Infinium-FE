@@ -79,6 +79,7 @@ export interface IndexedRepository {
   indexed_at: string | null;
   has_branch_index?: boolean;
   error_message: string | null;
+  has_branch_index?: boolean;
   indexed_branches?: string[];
   created_at: string;
   updated_at: string;
