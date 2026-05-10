@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sidebar } from "@/components/Sidebar";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   ChevronRight,
@@ -96,13 +95,16 @@ function TreeRow({
   if (node.isFile) {
     const isSelected = selectedPath === node.path;
     const symbolsOpen = expanded.has(`sym:${node.path}`);
+    const symCount = node.symbols?.length || 0;
     return (
       <>
         <div
           style={indent}
           onClick={() => {
             onPickFile(node.path);
-            if (node.symbols && node.symbols.length > 0) toggle(`sym:${node.path}`);
+            // Always toggle — even if no symbols (so user gets visual feedback
+            // about what a file contains).
+            toggle(`sym:${node.path}`);
           }}
           className={`flex items-center gap-1 py-1 px-2 cursor-pointer text-sm rounded-sm ${
             isSelected
@@ -110,7 +112,7 @@ function TreeRow({
               : "hover:bg-[#F1F5F9] text-[#0F172A]"
           }`}
         >
-          {node.symbols && node.symbols.length > 0 ? (
+          {symCount > 0 ? (
             symbolsOpen ? (
               <ChevronDown className="w-3 h-3 shrink-0 text-[#64748B]" />
             ) : (
@@ -120,8 +122,21 @@ function TreeRow({
             <span className="w-3 h-3 shrink-0" />
           )}
           <FileCode className="w-4 h-4 shrink-0 text-[#38BDF8]" strokeWidth={1.5} />
-          <span className="truncate">{node.name}</span>
+          <span className="truncate flex-1">{node.name}</span>
+          {symCount > 0 && (
+            <span className="text-[10px] text-[#94A3B8] shrink-0 ml-1">
+              {symCount}
+            </span>
+          )}
         </div>
+        {symbolsOpen && symCount === 0 && (
+          <div
+            style={{ paddingLeft: 8 + (depth + 1) * 14 + 18 }}
+            className="text-[10px] text-[#94A3B8] py-0.5 px-2 italic"
+          >
+            no functions detected — refactor will use whole file
+          </div>
+        )}
         {symbolsOpen &&
           node.symbols?.map((s) => {
             const isSelSym = isSelected && selectedSymbol === s.name;
@@ -200,23 +215,121 @@ function TreeRow({
   );
 }
 
-function DiffView({ diff }: { diff: string }) {
-  const lines = diff.split("\n");
+// ── Rich code viewer with line numbers + (optional) range highlight ──
+
+function CodeViewer({
+  content,
+  highlightStart,
+  highlightEnd,
+}: {
+  content: string;
+  language?: string;
+  highlightStart?: number;
+  highlightEnd?: number;
+}) {
+  const lines = content.split("\n");
   return (
-    <pre className="text-xs font-mono overflow-x-auto bg-[#0F172A] text-[#E2E8F0] rounded-sm p-3 leading-relaxed max-h-[400px] overflow-y-auto">
-      {lines.map((line, i) => {
-        let cls = "";
-        if (line.startsWith("+++") || line.startsWith("---") || line.startsWith("@@"))
-          cls = "text-[#38BDF8]";
-        else if (line.startsWith("+")) cls = "text-[#4ADE80]";
-        else if (line.startsWith("-")) cls = "text-[#F87171]";
-        return (
-          <div key={i} className={cls || "text-[#94A3B8]"}>
-            {line || " "}
-          </div>
-        );
-      })}
-    </pre>
+    <div className="font-mono text-[12px] leading-[1.55] bg-[#0B1220] text-[#E2E8F0]">
+      <table className="border-collapse w-full">
+        <tbody>
+          {lines.map((line, i) => {
+            const lineNum = i + 1;
+            const inHighlight =
+              highlightStart !== undefined &&
+              highlightEnd !== undefined &&
+              i >= highlightStart &&
+              i < highlightEnd;
+            return (
+              <tr
+                key={i}
+                className={inHighlight ? "bg-[#1E3A8A]/30" : ""}
+              >
+                <td className="select-none text-right px-3 py-[1px] text-[#475569] border-r border-[#1F2937] w-12 align-top">
+                  {lineNum}
+                </td>
+                <td className="px-3 py-[1px] whitespace-pre">{line || " "}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Side-by-side diff with line numbers, color bands per hunk ──
+
+interface DiffLine {
+  kind: "header" | "hunk" | "add" | "del" | "ctx" | "meta";
+  text: string;
+}
+
+function parseDiff(diff: string): DiffLine[] {
+  return diff.split("\n").map((text) => {
+    if (text.startsWith("@@")) return { kind: "hunk" as const, text };
+    if (text.startsWith("+++") || text.startsWith("---")) return { kind: "header" as const, text };
+    if (text.startsWith("+")) return { kind: "add" as const, text };
+    if (text.startsWith("-")) return { kind: "del" as const, text };
+    if (text.startsWith("diff ") || text.startsWith("index "))
+      return { kind: "meta" as const, text };
+    return { kind: "ctx" as const, text };
+  });
+}
+
+function DiffView({ diff }: { diff: string }) {
+  const lines = parseDiff(diff);
+
+  const adds = lines.filter((l) => l.kind === "add").length;
+  const dels = lines.filter((l) => l.kind === "del").length;
+
+  return (
+    <div className="border border-[#1F2937] rounded-md overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-[#0F172A] text-[11px] text-[#94A3B8]">
+        <span>Unified diff</span>
+        <span className="flex items-center gap-3">
+          <span className="text-[#4ADE80]">+{adds}</span>
+          <span className="text-[#F87171]">−{dels}</span>
+        </span>
+      </div>
+      <div className="bg-[#0B1220] text-[#E2E8F0] font-mono text-[12px] leading-[1.55]">
+        <table className="border-collapse w-full">
+          <tbody>
+            {lines.map((l, i) => {
+              if (l.kind === "header" || l.kind === "meta") return null;
+              const bg =
+                l.kind === "add"
+                  ? "bg-[#052e16]/70"
+                  : l.kind === "del"
+                  ? "bg-[#450a0a]/70"
+                  : l.kind === "hunk"
+                  ? "bg-[#1E3A8A]/30"
+                  : "";
+              const fg =
+                l.kind === "add"
+                  ? "text-[#86efac]"
+                  : l.kind === "del"
+                  ? "text-[#fca5a5]"
+                  : l.kind === "hunk"
+                  ? "text-[#7dd3fc]"
+                  : "text-[#cbd5e1]";
+              const sign =
+                l.kind === "add" ? "+" : l.kind === "del" ? "−" : l.kind === "hunk" ? "@" : " ";
+              const lineText = l.kind === "hunk" ? l.text : l.text.slice(1);
+              return (
+                <tr key={i} className={bg}>
+                  <td className="select-none w-6 text-center text-[#475569] px-1 align-top">
+                    {sign}
+                  </td>
+                  <td className={`${fg} whitespace-pre px-2 py-[1px]`}>
+                    {lineText || " "}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -294,7 +407,9 @@ export function CodeRefactor({ navigateTo }: Props) {
     })();
   }, []);
 
-  // Load tree when repo changes
+  // Load tree when repo changes. Pass the repo_url along so the backend can
+  // auto-clone if repo_cache/ is empty for this repo (happens for repos
+  // ingested via the public/tarball path).
   useEffect(() => {
     if (!activeRepo) return;
     setTreeLoading(true);
@@ -303,14 +418,45 @@ export function CodeRefactor({ navigateTo }: Props) {
     setSelectedFile(null);
     setResult(null);
     setTreeError(null);
+    const repoMeta = repos.find((r) => r.repo_name === activeRepo);
+    const repoUrl = repoMeta?.repo_url || undefined;
     refactorApi
-      .getRepoTree(activeRepo)
+      .getRepoTree(activeRepo, repoUrl)
       .then((t) => {
         setTree(t);
+        // Debug: how many files have symbols? Helps diagnose "no functions
+        // showing" — if total is high but withSymbols is 0, it's a Python-side
+        // chunker issue, not the FE.
+        const withSymbols = (t?.files || []).filter(
+          (f) => (f.symbols || []).length > 0
+        ).length;
+        const totalSymbols = (t?.files || []).reduce(
+          (acc, f) => acc + (f.symbols?.length || 0),
+          0
+        );
+        console.log(
+          `[CodeRefactor] tree loaded: ${t?.total || 0} files, ` +
+            `${withSymbols} with symbols, ${totalSymbols} symbols total`
+        );
+        if (t?.files?.length) {
+          const sample = t.files.find((f) => (f.symbols || []).length > 0);
+          if (sample) {
+            console.log(
+              `[CodeRefactor] sample file with symbols:`,
+              sample.path,
+              sample.symbols
+            );
+          } else {
+            console.log(
+              `[CodeRefactor] no file has symbols. Sample file:`,
+              t.files[0]
+            );
+          }
+        }
         if (!t || t.total === 0) {
           setTreeError(
             "Tree is empty. The repo isn't cloned on disk in `repo_cache/` — " +
-            "this happens when you ingested via the public/tarball path. Re-ingest using the clone path to enable refactor."
+              "this happens when you ingested via the public/tarball path. Re-ingest using the clone path to enable refactor."
           );
         }
       })
@@ -321,6 +467,8 @@ export function CodeRefactor({ navigateTo }: Props) {
         console.error("CodeRefactor: getRepoTree failed:", err);
       })
       .finally(() => setTreeLoading(false));
+    // Don't react to repos[] — using ref-like lookup, harmless to re-run.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRepo]);
 
   // Load file content when selectedPath changes
@@ -330,11 +478,14 @@ export function CodeRefactor({ navigateTo }: Props) {
       return;
     }
     setFileLoading(true);
+    const repoMeta = repos.find((r) => r.repo_name === activeRepo);
+    const repoUrl = repoMeta?.repo_url || undefined;
     refactorApi
-      .getRepoFile(activeRepo, selectedPath)
+      .getRepoFile(activeRepo, selectedPath, repoUrl)
       .then(setSelectedFile)
       .catch(() => setSelectedFile(null))
       .finally(() => setFileLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeRepo, selectedPath]);
 
   const root = useMemo(
@@ -532,11 +683,12 @@ export function CodeRefactor({ navigateTo }: Props) {
             )}
           </div>
 
-          {/* MIDDLE: viewer */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-auto bg-[#F8FAFC] p-4">
+          {/* MIDDLE: viewer + diff (single scroll for the whole column so
+              long files aren't clipped behind a nested scrollbar) */}
+          <div className="flex-1 flex flex-col overflow-auto">
+            <div className="bg-[#F8FAFC] p-4">
               {!selectedPath ? (
-                <div className="flex items-center justify-center h-full text-[#64748B] text-sm">
+                <div className="flex items-center justify-center min-h-[40vh] text-[#64748B] text-sm">
                   Select a file or function from the tree.
                 </div>
               ) : fileLoading ? (
@@ -545,26 +697,50 @@ export function CodeRefactor({ navigateTo }: Props) {
                 </div>
               ) : !selectedFile ? (
                 <div className="text-sm text-[#EF4444]">Failed to load file.</div>
-              ) : (
-                <Card className="border-2 border-[#E2E8F0] rounded-sm overflow-hidden">
-                  <div className="px-3 py-2 border-b border-[#E2E8F0] text-xs text-[#64748B] flex items-center justify-between">
-                    <span className="font-mono">{selectedFile.path}</span>
-                    <span className="text-[10px]">
-                      {selectedFile.size} bytes · {selectedFile.symbols.length} symbols
-                    </span>
+              ) : (() => {
+                const activeSym = selectedSymbol
+                  ? selectedFile.symbols.find((s) => s.name === selectedSymbol)
+                  : undefined;
+                const showWholeFile = !selectedSymbol || !activeSym;
+                const displayContent = showWholeFile
+                  ? selectedFile.content
+                  : selectedSymbolCode;
+                const lineCount = displayContent.split("\n").length;
+                return (
+                  <div className="rounded-md overflow-hidden shadow-sm border border-[#1F2937]">
+                    <div className="flex items-center justify-between px-3 py-2 bg-[#0F172A] text-[#E2E8F0]">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileCode className="w-4 h-4 shrink-0 text-[#38BDF8]" strokeWidth={1.5} />
+                        <span className="font-mono text-xs truncate">{selectedFile.path}</span>
+                        {activeSym && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-[#38BDF8]/20 text-[#7dd3fc] font-mono">
+                            {activeSym.kind === "class" ? "class " : "fn "}
+                            {activeSym.name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-[#94A3B8] font-mono shrink-0 ml-3">
+                        {lineCount} lines · {selectedFile.symbols.length} symbols
+                      </div>
+                    </div>
+                    <CodeViewer
+                      content={displayContent}
+                      language={selectedFile.language}
+                      highlightStart={
+                        showWholeFile && activeSym ? activeSym.start : undefined
+                      }
+                      highlightEnd={
+                        showWholeFile && activeSym ? activeSym.end : undefined
+                      }
+                    />
                   </div>
-                  <pre className="text-xs font-mono p-3 leading-relaxed bg-white text-[#0F172A] overflow-auto max-h-[60vh]">
-                    {selectedSymbol && selectedSymbolCode
-                      ? selectedSymbolCode
-                      : selectedFile.content}
-                  </pre>
-                </Card>
-              )}
+                );
+              })()}
             </div>
 
             {/* Result diff */}
             {result && (
-              <div className="border-t-2 border-[#E2E8F0] bg-white p-4 space-y-3 max-h-[55%] overflow-auto">
+              <div className="border-t-2 border-[#E2E8F0] bg-white p-4 space-y-3">
                 {!result.found ? (
                   <div className="text-sm text-[#EF4444]">
                     {result.reason || result.error || "Refactor failed."}
@@ -573,10 +749,7 @@ export function CodeRefactor({ navigateTo }: Props) {
                   <>
                     <div className="flex items-center justify-between">
                       <div className="text-sm font-medium text-[#0F172A]">
-                        Refactor diff{" "}
-                        <span className="text-xs text-[#64748B]">
-                          ({result.model} · {result.duration_ms}ms)
-                        </span>
+                        Suggested change
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
@@ -590,7 +763,7 @@ export function CodeRefactor({ navigateTo }: Props) {
                           ) : (
                             <Copy className="w-4 h-4 mr-1" />
                           )}
-                          {copied ? "Copied" : "Copy after"}
+                          {copied ? "Copied" : "Copy new code"}
                         </Button>
                         <Button
                           onClick={() => sendFeedback(5)}
