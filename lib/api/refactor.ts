@@ -51,18 +51,22 @@ export interface RefactorResult {
   error?: string;
 }
 
-export async function getRepoTree(repoName: string): Promise<RepoTree> {
-  const res = await apiRequest<{ success: boolean; data: RepoTree }>(
-    `/api/repos/${encodeURIComponent(repoName)}/tree?include_symbols=true`
-  );
+export async function getRepoTree(repoName: string, repoUrl?: string): Promise<RepoTree> {
+  let url = `/api/repos/${encodeURIComponent(repoName)}/tree?include_symbols=true`;
+  if (repoUrl) url += `&repo_url=${encodeURIComponent(repoUrl)}`;
+  const res = await apiRequest<{ success: boolean; data: RepoTree }>(url);
   // Node BE wraps Python responses in { success, data }
   return (res as { data: RepoTree }).data ?? (res as unknown as RepoTree);
 }
 
-export async function getRepoFile(repoName: string, path: string): Promise<RepoFile> {
-  const res = await apiRequest<{ success: boolean; data: RepoFile }>(
-    `/api/repos/${encodeURIComponent(repoName)}/file?path=${encodeURIComponent(path)}`
-  );
+export async function getRepoFile(
+  repoName: string,
+  path: string,
+  repoUrl?: string,
+): Promise<RepoFile> {
+  let url = `/api/repos/${encodeURIComponent(repoName)}/file?path=${encodeURIComponent(path)}`;
+  if (repoUrl) url += `&repo_url=${encodeURIComponent(repoUrl)}`;
+  const res = await apiRequest<{ success: boolean; data: RepoFile }>(url);
   return (res as { data: RepoFile }).data ?? (res as unknown as RepoFile);
 }
 
@@ -93,4 +97,47 @@ export async function submitFeedback(input: {
   metadata?: Record<string, unknown>;
 }): Promise<{ success: boolean }> {
   return apiRequest("/api/feedback", { method: "POST", body: input });
+}
+
+export interface FeedbackSummary {
+  total: number;
+  up: number;
+  down: number;
+  helpfulness_rate: number;   // 0..1
+  average_rating: number;     // 0..5
+}
+
+export interface FeedbackDayPoint extends FeedbackSummary {
+  date: string;
+}
+
+export interface FeedbackNegative {
+  id: number;
+  target_type: string;
+  repo_name: string;
+  query: string;
+  comment: string;
+  rating: number;
+  created_at: string;
+}
+
+export interface FeedbackMetrics {
+  window_days: number;
+  filters: { target_type: string | null; repo_name: string | null };
+  summary: FeedbackSummary;
+  by_day: FeedbackDayPoint[];
+  by_target_type: Record<string, FeedbackSummary>;
+  by_model: Record<string, FeedbackSummary>;
+  by_repo: Record<string, FeedbackSummary>;
+  recent_negatives: FeedbackNegative[];
+}
+
+export async function getFeedbackMetrics(
+  params: { days?: number; targetType?: string; repoName?: string } = {},
+): Promise<FeedbackMetrics> {
+  const q = new URLSearchParams();
+  q.set("days", String(params.days ?? 30));
+  if (params.targetType) q.set("target_type", params.targetType);
+  if (params.repoName) q.set("repo_name", params.repoName);
+  return apiRequest(`/api/feedback/metrics?${q.toString()}`);
 }

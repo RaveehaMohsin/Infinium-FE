@@ -69,6 +69,7 @@ export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
     { icon: FolderOpen, label: "Repositories", page: "repositories" as string },
     { icon: Database, label: "Data Sources Indexing", page: "datasources" as string },
     { icon: MessageSquare, label: "Query Interface", page: "query" as string },
+    //{ icon: Brain, label: "Reasoning", page: "reasoning" as string },
     { icon: Wand2, label: "Code Refactor", page: "code-refactor" as string },
     { icon: BookOpen, label: "Document Agent", page: "knowledge" as string },
     { icon: LineChart, label: "Analytics", page: "analytics" as string },

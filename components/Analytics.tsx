@@ -1,6 +1,7 @@
 "use client";
 
 import { Sidebar } from "@/components/Sidebar";
+import { ModelAccuracyPanel } from "@/components/ModelAccuracyPanel";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -206,6 +207,9 @@ export function Analytics({ navigateTo }: AnalyticsProps) {
         </header>
 
         <div className="p-4 sm:p-8 space-y-6">
+          {/* Model Accuracy from user feedback (👍/👎). Updates live as ratings come in. */}
+          <ModelAccuracyPanel />
+
           {/* Hero Stats Cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="blueprint-card p-5 bg-white group hover:border-[#38BDF8] transition-all duration-300">
