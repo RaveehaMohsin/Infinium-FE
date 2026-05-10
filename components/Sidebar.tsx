@@ -14,23 +14,47 @@ import {
   FolderOpen,
   BookOpen,
   FileText,
-  LogOut
+  LogOut,
+  Menu,
+  X
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { useEffect, useState } from "react";
 
 interface SidebarProps {
   currentPage: string;
-  navigateTo: (page: string ) => void;
+  navigateTo: (page: string) => void;
 }
 
 export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
   const router = useRouter();
   const { user, signOut } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const handleSignOut = async () => {
     await signOut();
     router.push("/auth");
+  };
+
+  const handleNavigate = (page: string) => {
+    navigateTo(page);
+    if (isMobile) {
+      setIsMobileMenuOpen(false);
+    }
   };
 
   const initials = (user?.full_name || user?.username || "U")
@@ -42,26 +66,25 @@ export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
   const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", page: "dashboard" as string },
     { icon: FolderOpen, label: "Repositories", page: "repositories" as string },
+    { icon: Database, label: "Data Sources Indexing", page: "datasources" as string },
     { icon: MessageSquare, label: "Query Interface", page: "query" as string },
-    { icon: Brain, label: "Reasoning", page: "reasoning" as string },
-    { icon: Clock, label: "Decision History", page: "decision-history" as string },
-    { icon: AlertTriangle, label: "Error Insights", page: "error-insights" as string },
     { icon: BookOpen, label: "Document Agent", page: "knowledge" as string },
-    { icon: FileText, label: "PDF Viewer", page: "pdf" as string },
     { icon: LineChart, label: "Analytics", page: "analytics" as string },
-    { icon: Database, label: "Data Sources", page: "datasources" as string },
-    { icon: Plug, label: "Integrations", page: "integrations" as string },
-    { icon: Settings, label: "Settings", page: "settings" as string },
+    { icon: FileText, label: "PDF Viewer", page: "pdf" as string },
+    { icon: Brain, label: "Architecture", page: "architecture" as string },
+    // { icon: Clock, label: "Decision History", page: "decision-history" as string },
+    // { icon: AlertTriangle, label: "Error Insights", page: "error-insights" as string },
+    // { icon: Brain, label: "Reasoning", page: "reasoning" as string },
+    // { icon: Plug, label: "Integrations", page: "integrations" as string },
+    // { icon: Settings, label: "Settings", page: "settings" as string },
   ];
 
-  return (
-    <aside className="w-64 h-screen bg-white border-r-2 border-[#1E3A8A] flex flex-col relative">
-      {/* Vertical line decoration */}
-      <div className="absolute right-4 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-[#E2E8F0] to-transparent"></div>
-
+  // Sidebar content component (reused for both desktop and mobile)
+  const SidebarContent = () => (
+    <>
       {/* Logo */}
       <div
-        onClick={() => navigateTo('dashboard')}
+        onClick={() => handleNavigate('dashboard')}
         className="p-6 border-b-2 border-[#E2E8F0] cursor-pointer hover:bg-gray-50 transition-colors"
       >
         <div className="flex items-center gap-2 blueprint-underline">
@@ -74,7 +97,7 @@ export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentPage === item.page;
@@ -85,11 +108,11 @@ export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#38BDF8] rounded-r"></div>
               )}
               <Button
-                onClick={() => navigateTo(item.page)}
+                onClick={() => handleNavigate(item.page)}
                 variant="ghost"
                 className={`w-full justify-start gap-3 blueprint-highlight ${isActive
-                  ? "bg-[#1E3A8A] text-white hover:bg-[#1E3A8A] border-l-2 border-[#38BDF8]"
-                  : "text-[#64748B] hover:text-[#1E3A8A] hover:bg-[#F8FAFC] border-l-2 border-transparent"
+                  ? "bg-[#1E3A8A] text-white hover:bg-[#1E3A8A]"
+                  : "text-[#64748B] hover:text-[#1E3A8A] hover:bg-[#F8FAFC]"
                   }`}
               >
                 <Icon className="w-5 h-5" strokeWidth={1.5} />
@@ -114,7 +137,6 @@ export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
       <div className="p-4 border-t-2 border-[#E2E8F0] space-y-2">
         <div className="flex items-center gap-3 p-3 border-2 border-[#CBD5E1] rounded-sm hover:border-[#1E3A8A] transition-colors blueprint-highlight">
           {user?.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={user.avatar_url}
               alt={user.username || "User"}
@@ -146,6 +168,53 @@ export function Sidebar({ currentPage, navigateTo }: SidebarProps) {
           </Button>
         )}
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile Menu Button */}
+      {isMobile && (
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="fixed top-4 left-4 z-50 p-2 bg-[#1E3A8A] text-white rounded-lg shadow-lg md:hidden"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      )}
+
+      {/* Desktop Sidebar - Always visible on md+ */}
+      {!isMobile && (
+        <aside className="w-64 h-screen bg-white border-r-2 border-[#1E3A8A] flex flex-col relative flex-shrink-0 hidden md:flex">
+          <div className="absolute right-4 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-[#E2E8F0] to-transparent"></div>
+          <SidebarContent />
+        </aside>
+      )}
+
+      {/* Mobile Drawer Overlay */}
+      {isMobile && isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 md:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Mobile Drawer */}
+      {isMobile && (
+        <aside
+          className={`fixed top-0 left-0 h-full w-72 bg-white border-r-2 border-[#1E3A8A] flex flex-col z-50 transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="absolute top-4 right-4 p-2 text-[#64748B] hover:text-[#1E3A8A] z-10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <SidebarContent />
+        </aside>
+      )}
+    </>
   );
 }

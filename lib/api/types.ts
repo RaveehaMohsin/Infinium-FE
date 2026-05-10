@@ -60,6 +60,7 @@ export interface GithubRepo {
   chunks_count: number;
   has_branch_index?: boolean;
   indexed_branches?: string[];
+  created_at?: string;
 }
 
 export interface IndexedRepository {
@@ -79,7 +80,6 @@ export interface IndexedRepository {
   indexed_at: string | null;
   has_branch_index?: boolean;
   error_message: string | null;
-  has_branch_index?: boolean;
   indexed_branches?: string[];
   created_at: string;
   updated_at: string;
@@ -100,6 +100,39 @@ export interface IngestStatus {
   indexed_at: string | null;
   error_message: string | null;
   python_status?: unknown;
+  // Progress tracking fields
+  elapsed_seconds?: number;
+  percent_complete?: number;
+  eta_seconds?: number;
+  chunks_processed?: number;
+  chunks_total?: number;
+  step?: string;  // Add this
+  files_processed?: number;  // Add this
+  commits_processed?: number;  // Add this
+  chunks_stored?: number;  // Add this
+}
+
+export interface BranchIngestStatus {
+  repo_name: string;
+  status: IndexingStatus;
+  branches_count: number;
+  branches_list: string[];
+  chunks_count: number;
+  files_count: number;
+  commits_count: number;
+  indexed_at: string | null;
+  error_message: string | null;
+  // Progress tracking fields
+  elapsed_seconds?: number;
+  percent_complete?: number;
+  eta_seconds?: number;
+  chunks_processed?: number;
+  chunks_total?: number;
+  step?: string;  // Add this
+  branches_processed?: number;  // Add this
+  branches_total?: number;  // Add this
+  branches_indexed?: string[];  // Add this
+  chunks_stored?: number;  // Add this
 }
 
 export interface QuerySource {
@@ -250,17 +283,24 @@ export interface DashboardStats {
   };
 }
 
-export interface BranchIngestStatus {
-  repo_name: string;
-  status: IndexingStatus;
-  branches_count: number;
-  branches_list: string[];
-  chunks_count: number;
-  files_count: number;
-  commits_count: number;
-  indexed_at: string | null;
-  error_message: string | null;
+export interface PdfAnalysis {
+  id: string;
+  file_name: string;
+  file_size: number;
+  summary: string;
+  keyEntities: string[];
+  technologies: string[];
+  requirements: string[];
+  recommendations: string[];
+  fullAnalysis: string;
+  created_at: string;
 }
+
+export interface PdfAnalysisListResponse {
+  analyses: PdfAnalysis[];
+  total: number;
+}
+
 
 export interface BranchIngestStartResponse {
   repo_name: string;
@@ -280,4 +320,77 @@ export interface QueryAllResponse {
   tokens_used: number;
   repos_searched: string[] | "all";
   repos_with_results: string[];
+}
+
+// ========== Architecture Diagram Types ==========
+
+export type DiagramType = "flowchart" | "class" | "sequence" | "component" | "architecture";
+
+export interface Diagram {
+  id: string;
+  user_id: string;
+  repo_name: string;
+  diagram_type: DiagramType;
+  title: string;
+  diagram_code: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiagramGenerateInput {
+  repo_name: string;
+  diagram_type: DiagramType;
+  title?: string;
+  description?: string;
+  branch_filter?: string | null;
+}
+
+export interface DiagramGenerateResponse {
+  id: string;
+  repo_name: string;
+  diagram_type: DiagramType;
+  title: string;
+  diagram_code: string;
+  description: string;
+  sources: QuerySource[];
+  model: string;
+  created_at: string;
+  updated_at: string;
+  is_new: boolean;
+}
+
+export interface DiagramListResponse {
+  diagrams: Diagram[];
+  total: number;
+}
+
+export interface DiagramRegenerateResponse {
+  diagram_code: string;
+  sources: QuerySource[];
+  model: string;
+  updated_at: string;
+}
+
+// Diagram type labels and metadata
+export const DIAGRAM_TYPES: { value: DiagramType; label: string; icon: string; description: string }[] = [
+  { value: "flowchart", label: "Flowchart", icon: "📊", description: "Code structure and module flow" },
+  { value: "class", label: "Class Diagram", icon: "🏗️", description: "Class relationships and inheritance" },
+  { value: "sequence", label: "Sequence Diagram", icon: "🔄", description: "API and interaction flow" },
+  { value: "component", label: "Component Diagram", icon: "🧩", description: "High-level component architecture" },
+  { value: "architecture", label: "Architecture Diagram", icon: "🏛️", description: "Complete system architecture" }
+];
+
+export interface GenerateDiagramResponse {
+  id: string;
+  repo_name: string;
+  diagram_type: DiagramType;
+  title: string;
+  diagram_code: string;
+  description: string;
+  sources: QuerySource[];
+  model: string;
+  created_at: string;
+  updated_at: string;
+  is_new: boolean;
 }
