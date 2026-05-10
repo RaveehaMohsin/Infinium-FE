@@ -6,14 +6,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { FeedbackButtons } from "@/components/FeedbackButtons";
 import {
   Send,
   Sparkles,
   Clock,
   CheckCircle,
   Copy,
-  ThumbsUp,
-  ThumbsDown,
   GitCommit,
   FileText,
   AlertCircle,
