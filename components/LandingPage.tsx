@@ -1,14 +1,24 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Brain, Code, Database, GitBranch, LineChart, Zap, Shield, Users } from "lucide-react";
+import { Brain, Code, Database, GitBranch, LineChart, Zap, Shield, Users, X, Play } from "lucide-react";
 
 interface LandingPageProps {
   onLogin: () => void;
 }
 
 export function LandingPage({ onLogin }: LandingPageProps) {
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+
+  // For Google Drive video - you'll need to get the direct download link or use the embed URL
+  // Method 1: Use the embed URL (replace FILE_ID with your file ID)
+  const googleDriveEmbedUrl = "https://drive.google.com/file/d/1bGcJDVO_nud_2o6VWGZ0YDuMFDViPp0R/preview";
+  
+  // Method 2: If you can host the video elsewhere, use a direct URL
+  // const videoUrl = "/path/to/your/video.mp4";
+
   return (
     <div className="min-h-screen bg-white blueprint-bg overflow-x-hidden">
       {/* Animated background lines - hidden on mobile */}
@@ -70,10 +80,12 @@ export function LandingPage({ onLogin }: LandingPageProps) {
                 Get Started →
               </Button>
               <Button
+                onClick={() => setIsVideoModalOpen(true)}
                 size="lg"
                 variant="outline"
-                className="border-2 border-[#CBD5E1] text-[#0F172A] hover:border-[#1E3A8A] blueprint-highlight text-sm sm:text-base px-6 sm:px-8"
+                className="border-2 border-[#CBD5E1] text-[#0F172A] hover:border-[#1E3A8A] blueprint-highlight text-sm sm:text-base px-6 sm:px-8 gap-2"
               >
+                <Play className="w-4 h-4" />
                 View Demo
               </Button>
             </div>
@@ -201,6 +213,49 @@ export function LandingPage({ onLogin }: LandingPageProps) {
           </div>
         </footer>
       </div>
+
+      {/* Video Demo Modal */}
+      {isVideoModalOpen && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          onClick={() => setIsVideoModalOpen(false)}
+        >
+          <div 
+            className="relative w-full max-w-4xl bg-white rounded-lg overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-[#0F172A]">Product Demo</h3>
+              <button
+                onClick={() => setIsVideoModalOpen(false)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-[#64748B]" />
+              </button>
+            </div>
+            
+            {/* Video Container */}
+            <div className="relative aspect-video bg-black">
+              <iframe
+                src={googleDriveEmbedUrl}
+                className="absolute inset-0 w-full h-full"
+                frameBorder="0"
+                allow="autoplay; encrypted-media"
+                allowFullScreen
+                title="Infinium Product Demo"
+              />
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="p-4 bg-gray-50">
+              <p className="text-sm text-[#64748B]">
+                Watch how Infinium transforms your team's institutional knowledge into actionable insights.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

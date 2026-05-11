@@ -6,20 +6,20 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { FeedbackButtons } from "@/components/FeedbackButtons";
 import {
   Send,
   Sparkles,
   Clock,
   CheckCircle,
-  Copy,
-  ThumbsUp,
-  ThumbsDown,
   GitCommit,
   FileText,
   AlertCircle,
   Loader2,
   Plus,
   Trash2,
+  Menu,
+  X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -58,7 +58,10 @@ const greeting: DisplayMessage = {
 
 function formatTime(input?: string) {
   const date = input ? new Date(input) : new Date();
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function sourceLabel(source: QuerySource): string {
@@ -77,22 +80,38 @@ function sourceIcon(source: QuerySource) {
   return AlertCircle;
 }
 
-export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
+export function QueryInterface({
+  navigateTo,
+}: QueryInterfaceProps) {
   const [query, setQuery] = useState("");
-  const [messages, setMessages] = useState<DisplayMessage[]>([greeting]);
+  const [messages, setMessages] = useState<DisplayMessage[]>([
+    greeting,
+  ]);
   const [repos, setRepos] = useState<IndexedRepository[]>([]);
   const [reposLoading, setReposLoading] = useState(true);
   const [selectedRepo, setSelectedRepo] = useState<string>("");
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [selectedBranch, setSelectedBranch] = useState<string>("");
-  const [conversationLoading, setConversationLoading] = useState(false);
+  const [conversations, setConversations] = useState<
+    Conversation[]
+  >([]);
+  const [activeConversationId, setActiveConversationId] =
+    useState<string | null>(null);
+  const [selectedBranch, setSelectedBranch] =
+    useState<string>("");
+  const [conversationLoading, setConversationLoading] =
+    useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // MOBILE MODAL STATE
+  const [showMobileSidebar, setShowMobileSidebar] =
+    useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
   }, [messages]);
 
   const searchParams = useSearchParams();
@@ -100,25 +119,46 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
 
   const loadRepos = useCallback(async () => {
     setReposLoading(true);
+
     try {
       const data = await reposApi.listIndexedRepos();
-      const completed = data.repositories.filter((r) => r.status === "completed");
+
+      const completed = data.repositories.filter(
+        (r) => r.status === "completed"
+      );
+
       setRepos(completed);
+
       setSelectedRepo((current) => {
         const target = repoFromUrl || current;
+
         const selected =
-          target && completed.some((r) => r.repo_name === target)
+          target &&
+          completed.some((r) => r.repo_name === target)
             ? target
             : completed[0]?.repo_name || "";
+
         if (selected) {
-          const repo = completed.find((r) => r.repo_name === selected);
+          const repo = completed.find(
+            (r) => r.repo_name === selected
+          );
+
           const branches = repo?.indexed_branches || [];
-          if (repo?.has_branch_index || branches.length > 1) {
+
+          if (
+            repo?.has_branch_index ||
+            branches.length > 1
+          ) {
             setSelectedBranch("all");
           } else {
-            setSelectedBranch(repo?.default_branch || branches[0] || "main");
+            setSelectedBranch(
+              repo?.default_branch ||
+                branches[0] ||
+                "main"
+            );
           }
         }
+
         return selected;
       });
     } catch (err) {
@@ -128,6 +168,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
           : err instanceof Error
             ? err.message
             : "Failed to load repositories";
+
       setError(message);
     } finally {
       setReposLoading(false);
@@ -139,7 +180,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
       const data = await queryApi.listConversations();
       setConversations(data.conversations);
     } catch {
-      // non-fatal
+      // non fatal
     }
   }, []);
 
@@ -149,16 +190,24 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
   }, [loadRepos, loadConversations]);
 
   const repoConversations = useMemo(
-    () => conversations.filter((c) => c.repo_name === selectedRepo),
+    () =>
+      conversations.filter(
+        (c) => c.repo_name === selectedRepo
+      ),
     [conversations, selectedRepo]
   );
 
   const selectedRepoObj = useMemo(
-    () => repos.find((r) => r.repo_name === selectedRepo),
+    () =>
+      repos.find(
+        (r) => r.repo_name === selectedRepo
+      ),
     [repos, selectedRepo]
   );
 
-  const messagesFromConversation = (msgs: ConversationMessage[]): DisplayMessage[] =>
+  const messagesFromConversation = (
+    msgs: ConversationMessage[]
+  ): DisplayMessage[] =>
     msgs.map((m) => ({
       id: m.id,
       type: m.role,
@@ -172,12 +221,29 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
   const openConversation = async (id: string) => {
     setConversationLoading(true);
     setError(null);
+
     try {
-      const detail = await queryApi.getConversation(id);
-      setActiveConversationId(detail.conversation.id);
-      setSelectedRepo(detail.conversation.repo_name);
-      const loaded = messagesFromConversation(detail.messages);
-      setMessages(loaded.length ? loaded : [greeting]);
+      const detail =
+        await queryApi.getConversation(id);
+
+      setActiveConversationId(
+        detail.conversation.id
+      );
+
+      setSelectedRepo(
+        detail.conversation.repo_name
+      );
+
+      const loaded = messagesFromConversation(
+        detail.messages
+      );
+
+      setMessages(
+        loaded.length ? loaded : [greeting]
+      );
+
+      // CLOSE MODAL ON MOBILE
+      setShowMobileSidebar(false);
     } catch (err) {
       const message =
         err instanceof ApiError
@@ -185,6 +251,7 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
           : err instanceof Error
             ? err.message
             : "Failed to load conversation";
+
       setError(message);
     } finally {
       setConversationLoading(false);
@@ -195,13 +262,27 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
     setActiveConversationId(null);
     setMessages([greeting]);
     setError(null);
+
+    setShowMobileSidebar(false);
   };
 
-  const handleDeleteConversation = async (id: string) => {
-    if (!window.confirm("Delete this conversation?")) return;
+  const handleDeleteConversation = async (
+    id: string
+  ) => {
+    if (
+      !window.confirm(
+        "Delete this conversation?"
+      )
+    )
+      return;
+
     try {
       await queryApi.deleteConversation(id);
-      setConversations((prev) => prev.filter((c) => c.id !== id));
+
+      setConversations((prev) =>
+        prev.filter((c) => c.id !== id)
+      );
+
       if (id === activeConversationId) {
         startNewConversation();
       }
@@ -212,19 +293,29 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
           : err instanceof Error
             ? err.message
             : "Failed to delete conversation";
+
       setError(message);
     }
   };
 
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] =
+    useState<string | null>(null);
 
   const handleSendQuery = async () => {
     const text = query.trim();
-    if (!text || !selectedRepo || sending) return;
+
+    if (
+      !text ||
+      !selectedRepo ||
+      sending
+    )
+      return;
 
     setSending(true);
     setError(null);
-    setStatusMessage("Scanning your codebase...");
+    setStatusMessage(
+      "Scanning your codebase..."
+    );
 
     const userMessage: DisplayMessage = {
       id: `local-${Date.now()}`,
@@ -232,19 +323,39 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
       content: text,
       timestamp: formatTime(),
     };
-    setMessages((prev) => [...prev, userMessage]);
+
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+    ]);
+
     setQuery("");
 
-    let conversationId = activeConversationId;
+    let conversationId =
+      activeConversationId;
+
     try {
-      if (!conversationId && selectedRepo !== "all") {
-        setStatusMessage("Connecting to intelligence engine...");
-        const conv = await queryApi.startConversation({
-          repo_name: selectedRepo,
-          title: text.slice(0, 80),
-        });
-        conversationId = conv.conversation_id;
-        setActiveConversationId(conversationId);
+      if (
+        !conversationId &&
+        selectedRepo !== "all"
+      ) {
+        setStatusMessage(
+          "Connecting to intelligence engine..."
+        );
+
+        const conv =
+          await queryApi.startConversation({
+            repo_name: selectedRepo,
+            title: text.slice(0, 80),
+          });
+
+        conversationId =
+          conv.conversation_id;
+
+        setActiveConversationId(
+          conversationId
+        );
+
         setConversations((prev) => [
           {
             id: conv.conversation_id,
@@ -261,54 +372,96 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
       const assistantMessageId = `assistant-${Date.now()}`;
 
       if (selectedRepo === "all") {
-        setStatusMessage("Reasoning across multiple repositories...");
-        const answer = await queryApi.askAllRepos({
-          query: text,
-        });
+        setStatusMessage(
+          "Reasoning across multiple repositories..."
+        );
 
-        const assistantMessage: DisplayMessage = {
-          id: assistantMessageId,
-          type: "assistant",
-          content: answer.answer,
-          timestamp: formatTime(),
-          sources: answer.sources,
-          model: answer.model,
-          tokens: answer.tokens_used,
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
+        const answer =
+          await queryApi.askAllRepos({
+            query: text,
+          });
+
+        const assistantMessage: DisplayMessage =
+          {
+            id: assistantMessageId,
+            type: "assistant",
+            content: answer.answer,
+            timestamp: formatTime(),
+            sources: answer.sources,
+            model: answer.model,
+            tokens: answer.tokens_used,
+          };
+
+        setMessages((prev) => [
+          ...prev,
+          assistantMessage,
+        ]);
       } else {
-        setStatusMessage("Analyzing your question...");
-        await new Promise((r) => setTimeout(r, 600));
-        setStatusMessage("Searching codebase for relevant snippets...");
-        await new Promise((r) => setTimeout(r, 800));
-        setStatusMessage("Retrieving repository context and commits...");
-        await new Promise((r) => setTimeout(r, 600));
-        setStatusMessage("Synthesizing answer with AI RAG engine...");
+        setStatusMessage(
+          "Analyzing your question..."
+        );
+
+        await new Promise((r) =>
+          setTimeout(r, 600)
+        );
+
+        setStatusMessage(
+          "Searching codebase for relevant snippets..."
+        );
+
+        await new Promise((r) =>
+          setTimeout(r, 800)
+        );
+
+        setStatusMessage(
+          "Retrieving repository context and commits..."
+        );
+
+        await new Promise((r) =>
+          setTimeout(r, 600)
+        );
+
+        setStatusMessage(
+          "Synthesizing answer with AI RAG engine..."
+        );
 
         let fullContent = "";
         let hasStartedStreaming = false;
-        const stream = queryApi.streamQuestion({
-          repo_name: selectedRepo,
-          query: text,
-          conversation_id: conversationId!,
-          branch_filter: selectedBranch === "all" ? null : selectedBranch,
-        });
+
+        const stream =
+          queryApi.streamQuestion({
+            repo_name: selectedRepo,
+            query: text,
+            conversation_id:
+              conversationId!,
+            branch_filter:
+              selectedBranch === "all"
+                ? null
+                : selectedBranch,
+          });
 
         for await (const chunk of stream) {
           if (!hasStartedStreaming) {
             hasStartedStreaming = true;
+
             setStatusMessage(null);
 
-            const placeholder: DisplayMessage = {
-              id: assistantMessageId,
-              type: "assistant",
-              content: "",
-              timestamp: formatTime(),
-            };
-            setMessages((prev) => [...prev, placeholder]);
+            const placeholder: DisplayMessage =
+              {
+                id: assistantMessageId,
+                type: "assistant",
+                content: "",
+                timestamp: formatTime(),
+              };
+
+            setMessages((prev) => [
+              ...prev,
+              placeholder,
+            ]);
           }
 
           fullContent += chunk;
+
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantMessageId
@@ -328,9 +481,13 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
           : err instanceof Error
             ? err.message
             : "Failed to get an answer";
+
       setError(message);
+
       setMessages((prev) => [
-        ...prev.filter((m) => m.content !== ""),
+        ...prev.filter(
+          (m) => m.content !== ""
+        ),
         {
           id: `error-${Date.now()}`,
           type: "assistant",
@@ -351,175 +508,294 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
     "Summarize the recent commit history.",
   ];
 
-  const handleSuggestedQuery = (suggested: string) => setQuery(suggested);
+  const handleSuggestedQuery = (
+    suggested: string
+  ) => setQuery(suggested);
 
-  const noRepos = !reposLoading && repos.length === 0;
+  const noRepos =
+    !reposLoading && repos.length === 0;
 
   return (
     <div className="flex h-screen bg-white blueprint-bg overflow-hidden">
-      <Sidebar currentPage="query" navigateTo={navigateTo} />
+      <Sidebar
+        currentPage="query"
+        navigateTo={navigateTo}
+      />
 
-      <main className="flex-1 flex flex-col md:flex-row">
-        {/* Conversation list - Responsive Sidebar */}
-        <aside className="w-full md:w-72 border-b-2 md:border-b-0 md:border-r-2 border-[#E2E8F0] bg-white flex flex-col max-h-[40vh] md:max-h-full overflow-y-auto">
-          <div className="p-4 border-b-2 border-[#E2E8F0] space-y-2 sticky top-0 bg-white z-10">
-            <label className="text-xs uppercase tracking-wide text-[#64748B] blueprint-label">
-              Repository
-            </label>
-            <select
-              value={selectedRepo}
-              onChange={(e) => {
-                setSelectedRepo(e.target.value);
-                const repo = repos.find((r) => r.repo_name === e.target.value);
-                setSelectedBranch(repo?.default_branch || "main");
-                startNewConversation();
-              }}
-              disabled={reposLoading || noRepos}
-              className="w-full px-3 py-2 rounded-md border-2 border-[#CBD5E1] focus:border-[#38BDF8] focus:outline-none text-sm"
-            >
-              {reposLoading ? (
-                <option>Loading…</option>
-              ) : noRepos ? (
-                <option>No indexed repos</option>
-              ) : (
-                <>
-                  <option value="all">All Repositories</option>
-                  {repos.map((repo) => (
-                    <option key={repo.id} value={repo.repo_name}>
-                      {repo.repo_name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
-            {noRepos && (
+      <main className="flex-1 flex overflow-hidden relative">
+        {/* MOBILE OVERLAY */}
+        {showMobileSidebar && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() =>
+              setShowMobileSidebar(false)
+            }
+          />
+        )}
+
+        {/* SIDEBAR */}
+        <aside
+          className={`
+            fixed lg:relative top-0 left-0 z-50
+            h-full w-[88%] sm:w-[380px] lg:w-72
+            bg-white border-r-2 border-[#E2E8F0]
+            flex flex-col
+            transform transition-transform duration-300
+            ${
+              showMobileSidebar
+                ? "translate-x-0"
+                : "-translate-x-full lg:translate-x-0"
+            }
+          `}
+        >
+          {/* HEADER */}
+          <div className="p-4 border-b-2 border-[#E2E8F0] bg-white sticky top-0 z-10">
+            <div className="flex items-center justify-between mb-4 lg:hidden">             
+              <h2 className="font-semibold text-[#0F172A]">
+                Conversations
+              </h2>
+
               <button
-                onClick={() => navigateTo("datasources")}
-                className="w-full text-xs text-[#1E3A8A] hover:text-[#38BDF8] underline text-left"
+                onClick={() =>
+                  setShowMobileSidebar(false)
+                }
+                className="p-2 rounded-md hover:bg-[#F1F5F9]"
               >
-                Index a repository to get started →
+                <X className="w-5 h-5 text-[#0F172A]" />
               </button>
-            )}
-            <Button
-              onClick={startNewConversation}
-              disabled={noRepos}
-              className="w-full bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8]"
-              size="sm"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New conversation
-            </Button>
+            </div>
 
-            {selectedRepo !== "all" && (
-              <div className="pt-2 space-y-2">
-                <label className="text-xs uppercase tracking-wide text-[#64748B] blueprint-label">
-                  Branch Scope
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs uppercase tracking-wide text-[#64748B] blueprint-label mb-2 block">
+                  Repository
                 </label>
+
                 <select
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                  className="w-full px-3 py-2 rounded-md border-2 border-[#CBD5E1] focus:border-[#38BDF8] focus:outline-none text-sm"
+                  value={selectedRepo}
+                  onChange={(e) => {
+                    setSelectedRepo(
+                      e.target.value
+                    );
+
+                    const repo = repos.find(
+                      (r) =>
+                        r.repo_name ===
+                        e.target.value
+                    );
+
+                    setSelectedBranch(
+                      repo?.default_branch ||
+                        "main"
+                    );
+
+                    startNewConversation();
+                  }}
+                  disabled={
+                    reposLoading || noRepos
+                  }
+                  className="w-full px-3 py-3 rounded-md border-2 border-[#CBD5E1] focus:border-[#38BDF8] focus:outline-none text-sm bg-white"
                 >
-                  <option value={selectedRepoObj?.default_branch || "main"}>
-                    {selectedRepoObj?.default_branch || "main"} (Default)
-                  </option>
-                  <option value="all">All Indexed Branches</option>
-                  {selectedRepoObj?.indexed_branches?.map((br) => (
-                    <option key={br} value={br}>
-                      {br}
+                  {reposLoading ? (
+                    <option>Loading…</option>
+                  ) : noRepos ? (
+                    <option>
+                      No indexed repos
                     </option>
-                  ))}
-                  {(!selectedRepoObj?.indexed_branches ||
-                    selectedRepoObj.indexed_branches.length === 0) && (
-                    <option value={selectedRepoObj?.default_branch || "main"}>
-                      {selectedRepoObj?.default_branch || "main"} (Default)
-                    </option>
+                  ) : (
+                    <>
+                      <option value="all">
+                        All Repositories
+                      </option>
+
+                      {repos.map((repo) => (
+                        <option
+                          key={repo.id}
+                          value={repo.repo_name}
+                        >
+                          {repo.repo_name}
+                        </option>
+                      ))}
+                    </>
                   )}
                 </select>
               </div>
-            )}
+
+              {selectedRepo !== "all" && (
+                <div>
+                  <label className="text-xs uppercase tracking-wide text-[#64748B] blueprint-label mb-2 block">
+                    Branch Scope
+                  </label>
+
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) =>
+                      setSelectedBranch(
+                        e.target.value
+                      )
+                    }
+                    className="w-full px-3 py-3 rounded-md border-2 border-[#CBD5E1] focus:border-[#38BDF8] focus:outline-none text-sm bg-white"
+                  >
+                    <option
+                      value={
+                        selectedRepoObj?.default_branch ||
+                        "main"
+                      }
+                    >
+                      {selectedRepoObj?.default_branch ||
+                        "main"}{" "}
+                      (Default)
+                    </option>
+
+                    <option value="all">
+                      All Indexed Branches
+                    </option>
+
+                    {selectedRepoObj?.indexed_branches?.map(
+                      (br) => (
+                        <option
+                          key={br}
+                          value={br}
+                        >
+                          {br}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </div>
+              )}
+
+              <Button
+                onClick={
+                  startNewConversation
+                }
+                disabled={noRepos}
+                className="w-full bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8]"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New conversation
+              </Button>
+            </div>
           </div>
+
+          {/* CONVERSATIONS */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
-            {repoConversations.length === 0 ? (
+            {repoConversations.length ===
+            0 ? (
               <p className="text-xs text-[#64748B] px-2 py-4">
-                No conversations yet for this repo.
+                No conversations yet for
+                this repo.
               </p>
             ) : (
-              repoConversations.map((conv) => {
-                const isActive = conv.id === activeConversationId;
-                return (
-                  <div
-                    key={conv.id}
-                    className={`group flex items-start gap-2 p-3 rounded-md border-2 transition-colors cursor-pointer ${
-                      isActive
-                        ? "border-[#1E3A8A] bg-[#F1F5FF]"
-                        : "border-[#E2E8F0] hover:border-[#38BDF8]"
-                    }`}
-                    onClick={() => openConversation(conv.id)}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#0F172A] truncate">
-                        {conv.title}
-                      </p>
-                      <p className="text-xs text-[#64748B] mt-1">
-                        {new Date(conv.updated_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteConversation(conv.id);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-[#64748B] hover:text-[#EF4444]"
-                      aria-label="Delete conversation"
+              repoConversations.map(
+                (conv) => {
+                  const isActive =
+                    conv.id ===
+                    activeConversationId;
+
+                  return (
+                    <div
+                      key={conv.id}
+                      className={`group flex items-start gap-2 p-3 rounded-md border-2 transition-colors cursor-pointer ${
+                        isActive
+                          ? "border-[#1E3A8A] bg-[#F1F5FF]"
+                          : "border-[#E2E8F0] hover:border-[#38BDF8]"
+                      }`}
+                      onClick={() =>
+                        openConversation(
+                          conv.id
+                        )
+                      }
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                );
-              })
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-[#0F172A] truncate">
+                          {conv.title}
+                        </p>
+
+                        <p className="text-xs text-[#64748B] mt-1">
+                          {new Date(
+                            conv.updated_at
+                          ).toLocaleString()}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+
+                          handleDeleteConversation(
+                            conv.id
+                          );
+                        }}
+                        className="opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity text-[#64748B] hover:text-[#EF4444]"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                }
+              )
             )}
           </div>
         </aside>
 
-        {/* Conversation column - Responsive */}
-        <section className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <header className="bg-white border-b-2 border-[#1E3A8A] px-4 sm:px-8 py-4 sm:py-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        {/* CHAT SECTION */}
+        <section className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
+          {/* HEADER */}
+          <header className="bg-white border-b-2 border-[#1E3A8A] px-4 md:px-6 py-4 flex-shrink-0">
+            <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-1 h-6 sm:h-8 bg-[#38BDF8]"></div>
+                {/* MOBILE MENU */}
+                <button
+                  onClick={() =>
+                    setShowMobileSidebar(
+                      true
+                    )
+                  }
+                  className="lg:hidden mt-10 w-10 h-10 rounded-md border border-[#CBD5E1] flex items-center justify-center hover:bg-[#F8FAFC]"
+                >
+                  <Menu className="w-5 h-5 text-[#0F172A]" />
+                </button>
+
+                <div className="w-1 h-8 bg-[#38BDF8] hidden sm:block"></div>
+
                 <div className="min-w-0">
-                  <h1 className="text-xl sm:text-3xl font-bold text-[#0F172A]">
+                  <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-[#0F172A] truncate">
                     Query Interface
                   </h1>
-                  <p className="text-sm text-[#64748B] mt-1 truncate">
+
+                  <p className="text-xs sm:text-sm text-[#64748B] mt-1 truncate max-w-[220px] sm:max-w-full">
                     {selectedRepo
                       ? `Asking about "${selectedRepo}"`
-                      : "Pick an indexed repo to start asking questions"}
+                      : "Pick an indexed repo"}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Badge
-                  variant="outline"
-                  className="border-2 border-[#38BDF8] text-[#38BDF8] text-xs sm:text-sm"
-                >
-                  <span className="w-2 h-2 bg-[#38BDF8] rounded-full mr-2 blueprint-pulse"></span>
+
+              <Badge
+                variant="outline"
+                className="border-2 border-[#38BDF8] text-[#38BDF8] shrink-0"
+              >
+                <span className="w-2 h-2 bg-[#38BDF8] rounded-full mr-2 blueprint-pulse"></span>
+
+                <span className="hidden sm:inline">
                   RAG Engine
-                </Badge>
-              </div>
+                </span>
+              </Badge>
             </div>
           </header>
 
+          {/* ERROR */}
           {error && (
-            <div className="px-4 sm:px-8 pt-4">
+            <div className="px-4 md:px-6 pt-4">
               <div className="rounded-md border-2 border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-4 sm:space-y-6">
+          {/* MESSAGES */}
+          <div className="flex-1 overflow-y-auto px-3 sm:px-5 lg:px-8 py-4 space-y-5">
             {conversationLoading && (
               <div className="flex items-center gap-2 text-[#64748B]">
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -530,146 +806,207 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex ${
+                  message.type === "user"
+                    ? "justify-end"
+                    : "justify-start"
+                }`}
               >
                 <div
-                  className={`max-w-[90%] sm:max-w-3xl ${message.type === "user" ? "w-auto" : "w-full"}`}
+                  className={`w-full ${
+                    message.type === "user"
+                      ? "max-w-[92%] sm:max-w-[80%]"
+                      : "max-w-full sm:max-w-[92%] lg:max-w-4xl"
+                  }`}
                 >
-                  {message.type === "assistant" && (
+                  {message.type ===
+                    "assistant" && (
                     <div className="flex items-center gap-2 mb-2">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
-                        <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" strokeWidth={1.5} />
+                      <div className="w-8 h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center shrink-0">
+                        <Sparkles className="w-4 h-4 text-white" />
                       </div>
-                      <span className="text-[#64748B] text-xs sm:text-sm blueprint-label">
+
+                      <span className="text-[#64748B] text-xs sm:text-sm">
                         Infinium Assistant
                       </span>
+
                       {message.timestamp && (
-                        <span className="text-[#CBD5E1] text-[10px] sm:text-xs">
-                          {message.timestamp}
+                        <span className="text-[#CBD5E1] text-xs">
+                          {
+                            message.timestamp
+                          }
                         </span>
                       )}
                     </div>
                   )}
 
                   <Card
-                    className={`p-4 sm:p-6 border-2 ${
-                      message.type === "user"
+                    className={`p-4 sm:p-5 lg:p-6 border-2 overflow-hidden ${
+                      message.type ===
+                      "user"
                         ? "bg-[#1E3A8A] border-[#1E3A8A]"
                         : "blueprint-card bg-white"
                     }`}
                   >
                     <div
-                      className={`${
-                        message.type === "user" ? "text-white" : "text-[#0F172A]"
-                      } leading-relaxed markdown-content text-sm sm:text-base`}
+                      className={`markdown-content break-words overflow-x-auto text-sm sm:text-base leading-relaxed ${
+                        message.type ===
+                        "user"
+                          ? "text-white"
+                          : "text-[#0F172A]"
+                      }`}
                     >
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      <ReactMarkdown
+                        remarkPlugins={[
+                          remarkGfm,
+                        ]}
+                      >
                         {message.content}
                       </ReactMarkdown>
                     </div>
 
-                    {message.sources && message.sources.length > 0 && (
-                      <div className="mt-4 pt-4 border-t-2 border-[#E2E8F0]">
-                        <p className="text-[#64748B] text-xs sm:text-sm mb-3 blueprint-label">
-                          Sources referenced:
-                        </p>
-                        <div className="space-y-2">
-                          {message.sources.map((source, idx) => {
-                            const Icon = sourceIcon(source);
-                            return (
-                              <div
-                                key={idx}
-                                className="flex items-center gap-2 text-xs sm:text-sm border-2 border-[#E2E8F0] p-2 rounded-sm hover:border-[#38BDF8] transition-colors"
-                              >
-                                <Icon
-                                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#1E3A8A]"
-                                  strokeWidth={1.5}
-                                />
-                                <span className="text-[#0F172A] truncate">
-                                  {sourceLabel(source)}
-                                </span>
-                                {typeof source.score === "number" && (
-                                  <span className="ml-auto text-[10px] sm:text-xs text-[#64748B]">
-                                    {source.score.toFixed(2)}
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                    {message.sources &&
+                      message.sources
+                        .length > 0 && (
+                        <div className="mt-4 pt-4 border-t-2 border-[#E2E8F0]">
+                          <p className="text-[#64748B] text-xs sm:text-sm mb-3">
+                            Sources referenced:
+                          </p>
 
-                    {message.type === "assistant" && message.id !== "greeting" && (
-                      <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t-2 border-[#E2E8F0] text-[10px] sm:text-xs text-[#64748B]">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => navigator.clipboard?.writeText(message.content)}
-                          className="text-[#64748B] hover:text-[#1E3A8A] h-8 px-2 sm:px-3"
-                        >
-                          <Copy className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" strokeWidth={1.5} />
-                          Copy
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-[#64748B] hover:text-[#38BDF8] h-8 px-2 sm:px-3"
-                        >
-                          <ThumbsUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" strokeWidth={1.5} />
-                          Helpful
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-[#64748B] hover:text-[#EF4444] h-8 px-2 sm:px-3"
-                        >
-                          <ThumbsDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-2" strokeWidth={1.5} />
-                          Not helpful
-                        </Button>
-                      </div>
-                    )}
+                          <div className="space-y-2">
+                            {message.sources.map(
+                              (
+                                source,
+                                idx
+                              ) => {
+                                const Icon =
+                                  sourceIcon(
+                                    source
+                                  );
+
+                                return (
+                                  <div
+                                    key={
+                                      idx
+                                    }
+                                    className="flex items-center gap-2 text-xs sm:text-sm border-2 border-[#E2E8F0] p-2 rounded-sm hover:border-[#38BDF8] transition-colors"
+                                  >
+                                    <Icon className="w-4 h-4 text-[#1E3A8A] shrink-0" />
+
+                                    <span className="text-[#0F172A] truncate flex-1">
+                                      {sourceLabel(
+                                        source
+                                      )}
+                                    </span>
+
+                                    {typeof source.score ===
+                                      "number" && (
+                                      <span className="text-xs text-[#64748B] shrink-0">
+                                        {source.score.toFixed(
+                                          2
+                                        )}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                    {message.type ===
+                      "assistant" &&
+                      message.id !==
+                        "greeting" && (
+                        <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t-2 border-[#E2E8F0]">
+                          <FeedbackButtons
+                            targetType="query"
+                            targetId={`${
+                              activeConversationId ||
+                              ""
+                            }:${message.id}`}
+                            query={
+                              messages.find(
+                                (
+                                  m,
+                                  i
+                                ) =>
+                                  i <
+                                    messages.indexOf(
+                                      message
+                                    ) &&
+                                  m.type ===
+                                    "user"
+                              )
+                                ?.content ||
+                              ""
+                            }
+                            answer={
+                              message.content
+                            }
+                            repoName={
+                              selectedRepo
+                            }
+                            metadata={{
+                              sources:
+                                message
+                                  .sources
+                                  ?.length ||
+                                0,
+                            }}
+                            compact
+                          />
+                        </div>
+                      )}
                   </Card>
 
-                  {message.type === "user" && (
+                  {message.type ===
+                    "user" && (
                     <div className="flex items-center justify-end gap-2 mt-2">
-                      <span className="text-[#CBD5E1] text-[10px] sm:text-xs blueprint-label">
-                        {message.timestamp}
+                      <span className="text-[#CBD5E1] text-xs">
+                        {
+                          message.timestamp
+                        }
                       </span>
-                      <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#38BDF8]" strokeWidth={1.5} />
+
+                      <CheckCircle className="w-4 h-4 text-[#38BDF8]" />
                     </div>
                   )}
                 </div>
               </div>
             ))}
 
+            {/* LOADING */}
             {sending && (
               <div className="flex justify-start">
-                <div className="w-full max-w-[90%] sm:max-w-3xl">
+                <div className="w-full max-w-4xl">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
-                      <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-pulse" strokeWidth={1.5} />
+                    <div className="w-8 h-8 bg-[#1E3A8A] border-2 border-[#38BDF8] rounded-sm flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-white animate-pulse" />
                     </div>
-                    <span className="text-[#64748B] text-xs sm:text-sm blueprint-label">
-                      {statusMessage || "Infinium Assistant is thinking..."}
+
+                    <span className="text-[#64748B] text-sm">
+                      {statusMessage ||
+                        "Infinium Assistant is thinking..."}
                     </span>
                   </div>
-                  <Card className="p-4 sm:p-6 border-2 border-dashed border-[#38BDF8] bg-[#F8FAFC]">
+
+                  <Card className="p-5 border-2 border-dashed border-[#38BDF8] bg-[#F8FAFC]">
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center gap-3">
                         <Loader2 className="w-4 h-4 animate-spin text-[#1E3A8A]" />
-                        <span className="text-xs sm:text-sm text-[#1E3A8A] font-medium animate-pulse">
-                          {statusMessage
-                            ? "Processing your intelligence..."
-                            : "Receiving intelligence from RAG engine..."}
+
+                        <span className="text-sm text-[#1E3A8A] font-medium animate-pulse">
+                          Processing your
+                          intelligence...
                         </span>
                       </div>
+
                       <div className="space-y-2">
-                        <div className="h-1.5 sm:h-2 w-3/4 bg-[#E2E8F0] rounded-full animate-pulse"></div>
-                        <div
-                          className="h-1.5 sm:h-2 w-1/2 bg-[#E2E8F0] rounded-full animate-pulse"
-                          style={{ animationDelay: "0.2s" }}
-                        ></div>
+                        <div className="h-2 w-3/4 bg-[#E2E8F0] rounded-full animate-pulse"></div>
+
+                        <div className="h-2 w-1/2 bg-[#E2E8F0] rounded-full animate-pulse"></div>
                       </div>
                     </div>
                   </Card>
@@ -677,37 +1014,62 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
               </div>
             )}
 
-            {messages.length === 1 && !noRepos && (
-              <div className="max-w-3xl">
-                <p className="text-[#64748B] text-xs sm:text-sm mb-4 blueprint-label">
-                  Try asking:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {suggestedQueries.map((suggested, idx) => (
-                    <Card
-                      key={idx}
-                      onClick={() => handleSuggestedQuery(suggested)}
-                      className="blueprint-card p-3 sm:p-4 bg-white hover:border-[#38BDF8] cursor-pointer transition-colors"
-                    >
-                      <p className="text-[#0F172A] text-xs sm:text-sm">{suggested}</p>
-                    </Card>
-                  ))}
+            {/* SUGGESTIONS */}
+            {messages.length === 1 &&
+              !noRepos && (
+                <div className="max-w-4xl">
+                  <p className="text-[#64748B] text-sm mb-4">
+                    Try asking:
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {suggestedQueries.map(
+                      (
+                        suggested,
+                        idx
+                      ) => (
+                        <Card
+                          key={idx}
+                          onClick={() =>
+                            handleSuggestedQuery(
+                              suggested
+                            )
+                          }
+                          className="blueprint-card p-4 bg-white hover:border-[#38BDF8] cursor-pointer transition-colors"
+                        >
+                          <p className="text-[#0F172A] text-sm">
+                            {
+                              suggested
+                            }
+                          </p>
+                        </Card>
+                      )
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t-2 border-[#1E3A8A] bg-white p-4 sm:p-6">
-            <div className="max-w-4xl mx-auto">
-              <div className="flex flex-col sm:flex-row gap-4">
+          {/* INPUT */}
+          <div className="border-t-2 border-[#1E3A8A] bg-white p-3 sm:p-5 flex-shrink-0">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-end gap-3">
                 <Input
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) =>
+                    setQuery(
+                      e.target.value
+                    )
+                  }
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
+                    if (
+                      e.key === "Enter" &&
+                      !e.shiftKey
+                    ) {
                       e.preventDefault();
+
                       handleSendQuery();
                     }
                   }}
@@ -716,25 +1078,41 @@ export function QueryInterface({ navigateTo }: QueryInterfaceProps) {
                       ? "Index a repo before asking questions"
                       : "Ask about architecture, code patterns, errors, or anything else…"
                   }
-                  disabled={sending || noRepos}
-                  className="flex-1 border-2 border-[#CBD5E1] text-[#0F172A] placeholder:text-[#CBD5E1] focus:border-[#38BDF8] text-sm sm:text-base"
+                  disabled={
+                    sending || noRepos
+                  }
+                  className="flex-1 min-h-[50px] border-2 border-[#CBD5E1] text-[#0F172A] placeholder:text-[#94A3B8] focus:border-[#38BDF8]"
                 />
+
                 <Button
-                  onClick={handleSendQuery}
-                  disabled={!query.trim() || sending || noRepos}
-                  className="bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8] whitespace-nowrap"
+                  onClick={
+                    handleSendQuery
+                  }
+                  disabled={
+                    !query.trim() ||
+                    sending ||
+                    noRepos
+                  }
+                  className="h-[50px] px-4 sm:px-6 bg-[#1E3A8A] hover:bg-[#38BDF8] text-white border-2 border-[#1E3A8A] hover:border-[#38BDF8] shrink-0"
                 >
                   {sending ? (
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    <Send className="w-4 h-4 mr-2" strokeWidth={1.5} />
+                    <>
+                      <Send className="w-4 h-4 sm:mr-2" />
+
+                      <span className="hidden sm:inline">
+                        Send
+                      </span>
+                    </>
                   )}
-                  Send
                 </Button>
               </div>
-              <p className="text-[#64748B] text-[10px] sm:text-xs mt-3 flex items-center gap-1 blueprint-label">
-                <Clock className="w-3 h-3" strokeWidth={1.5} />
-                Powered by your indexed repos via Infinium's RAG engine.
+
+              <p className="text-[#64748B] text-xs mt-3 flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                Powered by your indexed repos
+                via Infinium's RAG engine.
               </p>
             </div>
           </div>
