@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { FeedbackButtons } from "@/components/FeedbackButtons";
 import {
     Send,
     Sparkles,
@@ -302,6 +303,25 @@ export function ReasoningInterface({ navigateTo }: ReasoningInterfaceProps) {
                                                     </div>
                                                 );
                                             })}
+                                        </div>
+                                    )}
+
+                                    {msg.role === "ai" && (
+                                        <div className="pl-2 pt-1">
+                                            <FeedbackButtons
+                                                targetType="query"
+                                                targetId={String(msg.id)}
+                                                query={
+                                                    messages
+                                                        .filter((m, i) =>
+                                                            i < messages.indexOf(msg) && m.role === "user"
+                                                        )
+                                                        .slice(-1)[0]?.content || ""
+                                                }
+                                                answer={msg.content}
+                                                metadata={{ surface: "reasoning" }}
+                                                compact
+                                            />
                                         </div>
                                     )}
                                 </div>

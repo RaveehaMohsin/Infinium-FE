@@ -14,5 +14,6 @@ export * as queryApi from "./query";
 export * as docsApi from "./docs";
 export * as dashboardApi from "./dashboard";
 export * as branchIngestApi from "./branchIngest";
+export * as refactorApi from "./refactor";
 export * as pdfApi from "./pdf";
 export * as diagramApi from "./diagram";
