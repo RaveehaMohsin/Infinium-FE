@@ -79,24 +79,61 @@ export function Architecture({ navigateTo }: ArchitectureProps) {
     }
   }, [viewingDiagram]);
 
-  const renderMermaidDiagram = async (code: string) => {
-    setRendering(true);
-    try {
-      // Generate unique ID for this diagram
-      const id = `mermaid-${Date.now()}`;
-      
-      // Render the diagram
-      const { svg } = await mermaid.render(id, code);
-      
-      // Set SVG content
-      setSvgContent(svg);
-    } catch (err) {
-      console.error('Failed to render mermaid diagram:', err);
-      setSvgContent(`<div class="text-red-500 p-4 text-center">Failed to render diagram. Please check the syntax.</div>`);
-    } finally {
-      setRendering(false);
+const renderMermaidDiagram = async (code: string, retryCount = 0) => {
+  setRendering(true);
+  try {
+    let cleanCode = code;
+    
+    // Mermaid class diagram fixes
+    cleanCode = cleanCode
+      // Remove nested class declarations
+      .replace(/<<nested class>>\s*\n?\s*class\s+\w+\s*{/g, '')
+      // Remove empty brackets that cause issues
+      .replace(/\{\s*\}/g, '')
+      // Fix class names with spaces
+      .replace(/class\s+([\w\s]+)\s+{/g, (match, name) => `class ${name.trim()} {`)
+      // Ensure proper classDiagram declaration
+      .replace(/^[^c]/g, (match) => match === 'c' ? match : 'classDiagram\n' + match);
+    
+    const id = `mermaid-${Date.now()}`;
+    const { svg } = await mermaid.render(id, cleanCode);
+    setSvgContent(svg);
+  } catch (err: any) {
+    if (retryCount === 0) {
+      // Try one more time with aggressive cleaning
+      console.log('Retrying with aggressive cleaning...');
+      const aggressiveClean = code
+        .replace(/<<[^>]+>>/g, '')  // Remove all <<...>> directives
+        .replace(/class\s+\w+\s*{\s*}/g, '')  // Remove empty classes
+        .replace(/\n\s*\n\s*\n/g, '\n\n');  // Remove extra blank lines
+      return renderMermaidDiagram(aggressiveClean, retryCount + 1);
     }
-  };
+    
+    // Escape HTML to prevent XSS and display raw code properly
+    const escapeHtml = (str: string) => {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    };
+    
+    // Show raw code with error
+    setSvgContent(`
+      <div class="text-red-500 p-4 text-center border-2 border-red-300 rounded-lg bg-red-50">
+        <p class="font-bold mb-2">⚠️ Could not render class diagram</p>
+        <p class="text-sm text-gray-600 mb-3">The AI-generated diagram contains syntax that Mermaid cannot parse.</p>
+        <details class="text-left">
+          <summary class="cursor-pointer text-blue-600">📄 View Raw Mermaid Code</summary>
+          <pre class="mt-2 p-3 bg-gray-100 rounded-lg text-xs overflow-x-auto max-h-96">${escapeHtml(code)}</pre>
+        </details>
+      </div>
+    `);
+  } finally {
+    setRendering(false);
+  }
+};
 
   // Apply SVG to DOM when svgContent changes
   useEffect(() => {
