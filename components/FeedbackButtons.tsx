@@ -5,7 +5,7 @@ import { ThumbsUp, ThumbsDown, Loader2, Check, X } from "lucide-react";
 import { Button } from "./ui/button";
 import { refactorApi } from "@/lib/api";
 
-type TargetType = "query" | "refactor" | "explain" | "rewrite" | "search";
+type TargetType = "query" | "refactor" | "explain";
 
 interface Props {
   /** Which surface this feedback belongs to. Drives the per-target memory bucket. */

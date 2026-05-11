@@ -20,7 +20,11 @@ const TARGETS = [
   { key: "explain", label: "Explain" },
 ];
 
-export function ModelAccuracyPanel() {
+interface ModelAccuracyPanelProps {
+  navigateTo?: (page: string) => void;
+}
+
+export function ModelAccuracyPanel({ navigateTo }: ModelAccuracyPanelProps) {
   const [days, setDays] = useState(30);
   const [targetType, setTargetType] = useState("");
   const [metrics, setMetrics] = useState<FeedbackMetrics | null>(null);
